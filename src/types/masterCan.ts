@@ -1,4 +1,5 @@
 import type { Rarity } from './can'
+import type { MasterImageSource } from './masterImageSource'
 
 export const ENERGY_BRANDS = [
   'Monster',
@@ -13,6 +14,16 @@ export type EnergyBrand = (typeof ENERGY_BRANDS)[number]
 
 export type MasterBrandFilter = EnergyBrand | 'all'
 
+/** UI labels for brand filters (product names, not app branding). */
+export const BRAND_FILTER_LABELS: Record<EnergyBrand, string> = {
+  Monster: 'Monster Energy',
+  Rockstar: 'Rockstar',
+  'Red Bull': 'Red Bull',
+  Celsius: 'Celsius',
+  Nocco: 'Nocco',
+  'Generic Energy': 'Generic Energy',
+}
+
 export interface MasterCan {
   id: string
   brand: string
@@ -23,6 +34,11 @@ export interface MasterCan {
   barcode: string | null
   country: string | null
   image_url: string | null
+  reference_image_url: string | null
+  image_source: MasterImageSource | null
+  source: string | null
+  source_url: string | null
+  category: string | null
   rarity: Rarity
   release_year: number | null
   discontinued: boolean

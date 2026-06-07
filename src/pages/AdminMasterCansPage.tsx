@@ -51,7 +51,8 @@ export function AdminMasterCansPage() {
     setLoading(true)
     setError(null)
     try {
-      setSuggestions(await fetchPendingSuggestions('pending'))
+      const pending = await fetchPendingSuggestions('pending')
+      setSuggestions(pending.filter((row) => row.source !== 'official_site'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load suggestions')
     } finally {
@@ -75,14 +76,19 @@ export function AdminMasterCansPage() {
   const openEdit = (suggestion: PendingCanSuggestion) => {
     setEditing(suggestion)
     setForm({
-      brand: 'Monster',
+      brand: suggestion.brand ?? 'Monster',
       product_name: suggestion.product_name ?? '',
-      flavor: '',
-      variant_name: '',
-      volume: '',
-      country: '',
-      barcode: suggestion.barcode,
+      flavor: suggestion.flavor ?? '',
+      variant_name: suggestion.variant_name ?? '',
+      volume: suggestion.volume ?? '',
+      country: suggestion.country ?? '',
+      category: suggestion.category ?? '',
+      barcode: suggestion.barcode ?? '',
+      reference_image_url: suggestion.image_url,
       image_url: suggestion.image_url,
+      image_source: suggestion.source === 'official_site' ? 'official_site' : 'manual',
+      source: suggestion.source,
+      source_url: suggestion.source_url ?? suggestion.product_page_url ?? '',
       rarity: 'unknown',
       release_year: null,
       discontinued: false,
@@ -184,9 +190,17 @@ export function AdminMasterCansPage() {
     <Layout title="Master Can Admin">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-monster-muted">
-            Review pending suggestions. Only admins can add approved cans to the master database.
-          </p>
+          <div>
+            <p className="text-sm text-monster-muted">
+              Review pending suggestions. Only admins can add approved cans to the master database.
+            </p>
+            <Link
+              to="/admin/imports"
+              className="mt-1 inline-block text-xs text-monster-green hover:underline"
+            >
+              Official product import queue
+            </Link>
+          </div>
           {access === 'pin_required' ? (
             <button
               type="button"
@@ -236,7 +250,11 @@ export function AdminMasterCansPage() {
                     <p className="font-semibold text-white">
                       {suggestion.product_name ?? 'Unknown product'}
                     </p>
-                    <p className="font-mono text-xs text-monster-green">{suggestion.barcode}</p>
+                    {suggestion.barcode ? (
+                      <p className="font-mono text-xs text-monster-green">{suggestion.barcode}</p>
+                    ) : (
+                      <p className="text-xs text-monster-muted">No barcode yet</p>
+                    )}
                     <p className="mt-1 text-xs text-monster-muted">
                       Source: {suggestion.source} ·{' '}
                       {new Date(suggestion.created_at).toLocaleString()}
@@ -291,6 +309,11 @@ export function AdminMasterCansPage() {
                 onChange={(e) => setForm({ ...form, brand: e.target.value })}
               />
               <Input
+                label="Category"
+                value={form.category ?? ''}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              />
+              <Input
                 label="Flavor"
                 value={form.flavor ?? ''}
                 onChange={(e) => setForm({ ...form, flavor: e.target.value })}
@@ -317,15 +340,37 @@ export function AdminMasterCansPage() {
               </Select>
               <Input
                 label="Barcode"
-                value={form.barcode}
+                value={form.barcode ?? ''}
                 onChange={(e) => setForm({ ...form, barcode: e.target.value })}
               />
               <Input
-                label="Image URL (replace image)"
-                value={form.image_url ?? ''}
-                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                label="Reference image URL (external)"
+                value={form.reference_image_url ?? form.image_url ?? ''}
+                onChange={(e) =>
+                  setForm({ ...form, reference_image_url: e.target.value, image_url: e.target.value })
+                }
                 placeholder="https://..."
               />
+              <Select
+                label="Reference image source"
+                value={form.image_source ?? 'manual'}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    image_source: e.target.value as ApproveSuggestionInput['image_source'],
+                  })
+                }
+              >
+                <option value="official_site">Official site</option>
+                <option value="manual">Manual</option>
+                <option value="open_food_facts">Open Food Facts</option>
+                <option value="seed">Seed</option>
+                <option value="placeholder">Placeholder</option>
+              </Select>
+              <p className="-mt-2 text-[10px] text-monster-muted">
+                Official product images are external references. Do not re-host unless you have
+                permission.
+              </p>
               <label className="flex items-center gap-2 text-sm text-white">
                 <input
                   type="checkbox"

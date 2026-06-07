@@ -14,8 +14,8 @@ import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 
 export function CollectionPage() {
-  const { storageUserId, isConfigured } = useAuth()
-  const { isGuest, openLearnMore } = useGuestMessaging()
+  const { storageUserId } = useAuth()
+  const { isGuest } = useGuestMessaging()
   const { cans, loading, error } = useCans(storageUserId)
   const [filters, setFilters] = useState(defaultFilters)
 
@@ -49,18 +49,10 @@ export function CollectionPage() {
                   <Link to="/add">
                     <Button>Add Can</Button>
                   </Link>
-                  {isGuest && isConfigured ? (
+                  {isGuest ? (
                     <Link to="/register" className="text-xs text-monster-green hover:underline">
                       Create free account
                     </Link>
-                  ) : isGuest ? (
-                    <button
-                      type="button"
-                      onClick={openLearnMore}
-                      className="text-xs text-monster-green hover:underline"
-                    >
-                      Learn about cloud sync
-                    </button>
                   ) : null}
                 </div>
               ) : undefined

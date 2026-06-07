@@ -46,7 +46,7 @@ export async function fetchCanById(id: string): Promise<Can | null> {
 export async function createCan(
   userId: string,
   can: CanInsert,
-  options?: { maxActiveListings?: number },
+  options?: { maxActiveListings?: number; skipTradeSync?: boolean },
 ): Promise<Can> {
   const normalized = normalizeCanTradeFields(can)
 
@@ -65,14 +65,16 @@ export async function createCan(
 
   if (error) throw error
   const created = normalizeCanRecord(data as Can)
-  await syncTradeFromCan(created, options?.maxActiveListings ?? 999)
+  if (!options?.skipTradeSync) {
+    await syncTradeFromCan(created, options?.maxActiveListings ?? 999)
+  }
   return created
 }
 
 export async function updateCan(
   id: string,
   updates: CanUpdate,
-  options?: { maxActiveListings?: number },
+  options?: { maxActiveListings?: number; skipTradeSync?: boolean },
 ): Promise<Can> {
   const normalized = normalizeCanTradeFields(updates)
 
@@ -92,7 +94,9 @@ export async function updateCan(
 
   if (error) throw error
   const updated = normalizeCanRecord(data as Can)
-  await syncTradeFromCan(updated, options?.maxActiveListings ?? 999)
+  if (!options?.skipTradeSync) {
+    await syncTradeFromCan(updated, options?.maxActiveListings ?? 999)
+  }
   return updated
 }
 

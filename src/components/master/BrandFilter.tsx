@@ -1,4 +1,4 @@
-import { ENERGY_BRANDS, type MasterBrandFilter } from '../../types/masterCan'
+import { BRAND_FILTER_LABELS, ENERGY_BRANDS, type MasterBrandFilter } from '../../types/masterCan'
 
 interface BrandFilterProps {
   value: MasterBrandFilter
@@ -30,7 +30,7 @@ export function BrandFilter({ value, onChange }: BrandFilterProps) {
               : 'border-monster-border text-monster-muted hover:text-white'
           }`}
         >
-          {brand}
+          {BRAND_FILTER_LABELS[brand]}
         </button>
       ))}
     </div>

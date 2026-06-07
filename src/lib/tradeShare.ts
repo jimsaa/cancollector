@@ -51,5 +51,5 @@ export function formatTradeShareText(cans: Can[]): string {
     const qty = c.quantity > 1 ? ` (×${c.quantity})` : ''
     return `• ${parts.join(' — ')}${qty}`
   })
-  return `Can Collector Trade List\n\n${lines.join('\n')}\n\n${cans.length} cans available for trade.`
+  return `CanCollector Trade List\n\n${lines.join('\n')}\n\n${cans.length} cans available for trade.`
 }

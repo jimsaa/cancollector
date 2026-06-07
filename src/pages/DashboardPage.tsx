@@ -96,7 +96,7 @@ export function DashboardPage() {
               <EmptyState
                 icon={<Package size={40} />}
                 title="No cans yet"
-                description="Scan your first Monster Energy can to start your collection."
+                description="Scan your first can to start your CanCollector collection."
                 action={
                   <Link to="/add">
                     <Button>Add Your First Can</Button>

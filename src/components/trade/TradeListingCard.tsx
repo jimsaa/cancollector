@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Image, MapPin, Package, Truck, Video } from 'lucide-react'
 import type { Can } from '../../types/can'
+import { getTradeDisplayImageUrl } from '../../lib/canImage'
 import type { TradeListing } from '../../types/trade'
 import { Card } from '../ui/Card'
 
@@ -11,7 +12,7 @@ interface TradeListingCardProps {
 }
 
 export function TradeListingCard({ listing, can, showPriority }: TradeListingCardProps) {
-  const imageUrl = can?.image_url
+  const imageUrl = can ? getTradeDisplayImageUrl(can) : null
   const location = [listing.location_city, listing.location_country].filter(Boolean).join(', ')
   const extraCount = listing.extra_image_urls.length
 

@@ -25,9 +25,11 @@ Complete these steps before testing registration and cloud sync in Can Collector
 
 - [ ] **Authentication → URL Configuration**
 - [ ] Set **Site URL** to your app origin (e.g. `http://localhost:3003` or production URL)
-- [ ] Add **Redirect URLs**:
-  - `http://localhost:3003/**`
-  - Your Vercel/production URL
+- [ ] Add **Redirect URLs** (must match `emailRedirectTo` = `{origin}/auth/callback`):
+  - `http://localhost:3003/auth/callback`
+  - `https://your-app.vercel.app/auth/callback`
+  - Or use wildcards: `http://localhost:3003/**` and `https://your-app.vercel.app/**`
+- [ ] Set **Site URL** to your production Vercel URL (not `localhost:3000`)
 
 ---
 

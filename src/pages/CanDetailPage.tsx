@@ -32,7 +32,10 @@ import { useCans } from '../hooks/useCans'
 
 import { useCanImageUpload } from '../hooks/useCanImageUpload'
 
+import { CanDetailImageTabs } from '../components/cans/CanDetailImageTabs'
 import { getSaveImageFields } from '../lib/canImage'
+import { fetchActiveMasterCans } from '../lib/masterCans'
+import type { MasterCan } from '../types/masterCan'
 
 import { fetchCanById } from '../lib/cans'
 
@@ -73,6 +76,7 @@ export function CanDetailPage() {
   const [deleting, setDeleting] = useState(false)
 
   const [message, setMessage] = useState<string | null>(null)
+  const [linkedMaster, setLinkedMaster] = useState<MasterCan | null>(null)
 
 
 
@@ -106,7 +110,24 @@ export function CanDetailPage() {
 
   }, [id])
 
-
+  useEffect(() => {
+    if (!can?.master_can_id) {
+      setLinkedMaster(null)
+      return
+    }
+    let active = true
+    fetchActiveMasterCans('all')
+      .then((masters) => {
+        if (!active) return
+        setLinkedMaster(masters.find((m) => m.id === can.master_can_id) ?? null)
+      })
+      .catch(() => {
+        if (active) setLinkedMaster(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [can?.master_can_id])
 
   const handleImageFile = async (file: File) => {
 
@@ -114,7 +135,7 @@ export function CanDetailPage() {
 
     try {
 
-      const previousUrl = can.image_url
+      const previousUrl = can.user_image_url
 
       const url = await imageUpload.processFile(file)
 
@@ -151,7 +172,7 @@ export function CanDetailPage() {
 
     imageUpload.clearUploadState()
 
-    const previousUrl = can.image_url
+    const previousUrl = can.user_image_url
 
     const nextForm = applyAutoImageToForm({ ...form, user_image_url: '' })
     setForm(nextForm)
@@ -250,9 +271,9 @@ export function CanDetailPage() {
 
     try {
 
-      if (can.image_url?.includes('/can-images/')) {
+      if (can.user_image_url?.includes('/can-images/')) {
 
-        await deleteCanImage(can.image_url).catch(() => undefined)
+        await deleteCanImage(can.user_image_url).catch(() => undefined)
 
       }
 
@@ -335,29 +356,26 @@ export function CanDetailPage() {
       <div className="flex flex-col gap-4">
 
         <Card className="p-4">
-
-          <CanFormFields
-
+          <CanDetailImageTabs
             data={form}
-
             onChange={setForm}
-
             onImageFileSelect={handleImageFile}
-
-            onImageRemove={handleImageRemove}
-
+            onImageRemove={() => void handleImageRemove()}
             imageUploading={imageUpload.uploading || saving}
-
             imageUploadError={imageUpload.uploadError}
-
             imageSizeWarning={imageUpload.sizeWarning}
-
-            showWishlistFields={can.is_wishlist}
-
-            showImageSource
-
+            masterSourceUrl={linkedMaster?.source_url}
+            masterImageSource={linkedMaster?.image_source}
           />
+        </Card>
 
+        <Card className="p-4">
+          <CanFormFields
+            data={form}
+            onChange={setForm}
+            showWishlistFields={can.is_wishlist}
+            hideImageUpload
+          />
         </Card>
 
 

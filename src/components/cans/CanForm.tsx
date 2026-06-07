@@ -122,6 +122,7 @@ interface CanFormFieldsProps {
   imageSizeWarning?: string | null
   showWishlistFields?: boolean
   showImageSource?: boolean
+  hideImageUpload?: boolean
 }
 
 export function CanFormFields({
@@ -134,6 +135,7 @@ export function CanFormFields({
   imageSizeWarning,
   showWishlistFields,
   showImageSource,
+  hideImageUpload,
 }: CanFormFieldsProps) {
   const set = <K extends keyof CanFormData>(key: K, value: CanFormData[K]) => {
     onChange({ ...data, [key]: value })
@@ -143,7 +145,7 @@ export function CanFormFields({
 
   return (
     <div className="flex flex-col gap-4">
-      {onImageFileSelect ? (
+      {onImageFileSelect && !hideImageUpload ? (
         <CanImageUpload
           data={data}
           onChange={(patch) => onChange({ ...data, ...patch })}

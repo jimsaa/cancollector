@@ -32,14 +32,24 @@ export function shouldTriggerMilestone(milestone: GuestMilestone): boolean {
   return !hasShownMilestone(milestone)
 }
 
-export function formatImportResult(imported: number, merged: number, skipped: number): string {
-  const total = imported + merged
+export function formatImportResult(
+  imported: number,
+  merged: number,
+  skipped: number,
+  failed = 0,
+): string {
   const parts: string[] = []
-  if (total > 0) {
-    parts.push(`${total} can${total === 1 ? '' : 's'} imported`)
+  if (imported > 0) {
+    parts.push(`${imported} can${imported === 1 ? '' : 's'} imported`)
+  }
+  if (merged > 0) {
+    parts.push(`${merged} duplicate${merged === 1 ? '' : 's'} merged`)
   }
   if (skipped > 0) {
     parts.push(`${skipped} duplicate${skipped === 1 ? '' : 's'} skipped`)
+  }
+  if (failed > 0) {
+    parts.push(`${failed} failed`)
   }
   if (parts.length === 0) return 'No cans to import.'
   return parts.join(', ') + '.'

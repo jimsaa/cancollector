@@ -21,13 +21,17 @@ import type { User } from '@supabase/supabase-js'
 import { setGuestStorageActive } from '../lib/guestStorage'
 
 import { getLocalUserId } from '../lib/localCans'
+import { checkLocalImportState, logLocalImportCheck } from '../lib/localImport'
 
 import { isConfigured } from '../lib/mode'
 
-import { fetchProfile, updateProfile as saveProfile, upsertProfile } from '../lib/profiles'
+import { ensureProfile, fetchProfile, updateProfile as saveProfile, upsertProfile } from '../lib/profiles'
 
+import { getAuthCallbackUrl } from '../lib/authRedirect'
+import { formatSupabaseError, logAuthError } from '../lib/supabaseDebug'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
+import { SignUpAuthError, type SignUpResult } from '../types/auth'
 import type { Profile, ProfileUpdate } from '../types/profile'
 
 import { isProfileAdmin } from '../lib/adminAuth'
@@ -79,7 +83,7 @@ interface AuthContextValue extends AuthState {
 
   signIn: (email: string, password: string) => Promise<void>
 
-  signUp: (displayName: string, email: string, password: string) => Promise<void>
+  signUp: (displayName: string, email: string, password: string) => Promise<SignUpResult>
 
   signOut: () => Promise<void>
 
@@ -242,9 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profile = await loadProfile(user)
 
         if (active) {
-
           setState({ user, profile, loading: false, error: null })
-
+          logLocalImportCheck(checkLocalImportState(user.id))
         }
 
       } catch (err) {
@@ -321,6 +324,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (data.session?.user) {
       applyStorageMode(data.session.user)
+      logLocalImportCheck(checkLocalImportState(data.session.user.id))
     }
 
   }, [])
@@ -328,41 +332,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const signUp = useCallback(async (displayName: string, email: string, password: string) => {
-    if (!supabase) throw new Error('Supabase is not configured')
+    if (!supabase) throw new SignUpAuthError('Supabase is not configured')
 
     setState((prev) => ({ ...prev, error: null }))
 
     const trimmedName = displayName.trim()
     const trimmedEmail = email.trim()
+    const warnings: SignUpResult['warnings'] = []
 
     const { data, error } = await supabase.auth.signUp({
       email: trimmedEmail,
       password,
       options: {
         data: { display_name: trimmedName },
+        emailRedirectTo: getAuthCallbackUrl(),
       },
     })
 
     if (error) {
-      setState((prev) => ({ ...prev, error: error.message }))
-      throw error
+      logAuthError('SIGNUP_ERROR', error)
+      const message = formatSupabaseError(error, 'Sign up failed')
+      setState((prev) => ({ ...prev, error: message }))
+      throw new SignUpAuthError(message)
     }
 
-    if (data.user) {
-      await upsertProfile(data.user.id, trimmedEmail, trimmedName)
+    if (!data.user) {
+      logAuthError('SIGNUP_ERROR', { message: 'No user returned from signUp' })
+      throw new SignUpAuthError('Sign up did not return a user')
     }
 
-    // Auto sign-in when email confirmation is disabled (dev) or session returned
-    if (!data.session) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+    const userId = data.user.id
+    let sessionUser = data.session?.user ?? null
+
+    if (!sessionUser) {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password,
       })
-      if (signInError && !signInError.message.toLowerCase().includes('confirm')) {
-        setState((prev) => ({ ...prev, error: signInError.message }))
-        throw signInError
+
+      if (signInError) {
+        const needsConfirm = signInError.message.toLowerCase().includes('confirm')
+        logAuthError(needsConfirm ? 'SIGNUP_ERROR' : 'SIGNUP_ERROR', signInError)
+        warnings.push({
+          code: needsConfirm ? 'email_confirm' : 'auto_sign_in',
+          message: needsConfirm
+            ? 'Account created. Please check your email to confirm, then sign in.'
+            : `Account created. Sign in manually if needed (${formatSupabaseError(signInError)}).`,
+        })
+      } else {
+        sessionUser = signInData.session?.user ?? null
       }
     }
+
+    if (sessionUser) {
+      applyStorageMode(sessionUser)
+      logLocalImportCheck(checkLocalImportState(sessionUser.id))
+
+      const { profile, failed } = await ensureProfile(userId, trimmedEmail, trimmedName)
+      if (failed) {
+        warnings.push({
+          code: 'profile',
+          message: 'Account created, but profile setup failed. You can still log in.',
+        })
+      } else if (profile) {
+        setState((prev) => ({ ...prev, user: sessionUser, profile, loading: false, error: null }))
+      } else {
+        try {
+          const loaded = await loadProfile(sessionUser)
+          setState((prev) => ({
+            ...prev,
+            user: sessionUser,
+            profile: loaded,
+            loading: false,
+            error: null,
+          }))
+        } catch (loadErr) {
+          logAuthError('PROFILE_ERROR', loadErr)
+          warnings.push({
+            code: 'profile',
+            message: 'Account created, but profile setup failed. You can still log in.',
+          })
+          setState((prev) => ({ ...prev, user: sessionUser, loading: false, error: null }))
+        }
+      }
+    }
+
+    const result: SignUpResult = {
+      authCreated: true,
+      userId,
+      signedIn: Boolean(sessionUser),
+      warnings,
+    }
+    return result
   }, [])
 
 

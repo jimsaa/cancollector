@@ -1,5 +1,9 @@
 import { Heart, Check } from 'lucide-react'
 import type { MasterCanWithStatus } from '../../types/masterCan'
+import {
+  getMasterReferenceDisplayUrl,
+  getMasterReferenceImageUrl,
+} from '../../lib/masterReferenceImage'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 
@@ -26,8 +30,13 @@ export function MasterCanCard({
   return (
     <Card className="flex gap-3 p-3">
       <div className="flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-monster-card">
-        {can.image_url ? (
-          <img src={can.image_url} alt="" className="h-full w-full object-cover" />
+        {getMasterReferenceImageUrl(can) ? (
+          <img
+            src={getMasterReferenceDisplayUrl(can)}
+            alt=""
+            className="h-full w-full object-contain p-0.5"
+            referrerPolicy="no-referrer"
+          />
         ) : (
           <span className="text-[10px] font-bold uppercase text-monster-muted">{can.brand[0]}</span>
         )}

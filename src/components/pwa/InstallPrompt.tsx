@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
+import { APP_NAME } from '../../constants/branding'
 import { Logo } from '../brand/Logo'
 import { Button } from '../ui/Button'
 
@@ -62,7 +63,7 @@ export function InstallPrompt() {
       <div className="flex items-start gap-3 rounded-2xl border border-monster-green/40 bg-monster-card p-4 shadow-lg">
         <Logo size="md" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white">Install Can Collector</p>
+          <p className="text-sm font-semibold text-white">Install {APP_NAME}</p>
           <p className="mt-0.5 text-xs text-monster-muted">
             Add to your home screen for quick access and HTTPS camera scanning.
           </p>

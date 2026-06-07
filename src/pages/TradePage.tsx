@@ -59,7 +59,7 @@ export function TradePage() {
   const shareNative = () => {
     const text = shareText()
     if (navigator.share) {
-      navigator.share({ title: 'Can Collector Trade List', text }).catch(() => {
+      navigator.share({ title: 'CanCollector Trade List', text }).catch(() => {
         navigator.clipboard.writeText(text)
       })
     } else {

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { Logo } from '../components/brand/Logo'
+import { APP_NAME } from '../constants/branding'
 
 import { Layout } from '../components/layout/Layout'
 
@@ -13,6 +14,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 
 import { useAuth } from '../context/AuthContext'
+import { formatSupabaseError, logAuthError } from '../lib/supabaseDebug'
 
 
 
@@ -34,7 +36,13 @@ export function LoginPage() {
 
   useEffect(() => {
 
-    if (user && isCloudSynced) navigate('/', { replace: true })
+    if (user && isCloudSynced) {
+      try {
+        navigate('/', { replace: true })
+      } catch (err) {
+        logAuthError('REDIRECT_ERROR', err)
+      }
+    }
 
   }, [user, isCloudSynced, navigate])
 
@@ -51,10 +59,15 @@ export function LoginPage() {
     try {
 
       await signIn(email, password)
+      try {
+        navigate('/', { replace: true })
+      } catch (navErr) {
+        logAuthError('REDIRECT_ERROR', navErr)
+      }
 
     } catch (err) {
-
-      setLocalError(err instanceof Error ? err.message : 'Sign in failed')
+      logAuthError('SIGNUP_ERROR', err)
+      setLocalError(formatSupabaseError(err, 'Sign in failed'))
 
     } finally {
 
@@ -97,7 +110,9 @@ export function LoginPage() {
 
           <Logo size="xl" className="mx-auto mb-4" />
 
-          <h1 className="text-2xl font-bold text-white">Welcome back</h1>
+          <p className="text-sm font-bold text-monster-green">{APP_NAME}</p>
+
+          <h1 className="mt-1 text-2xl font-bold text-white">Welcome back</h1>
 
           <p className="mt-1 text-sm text-monster-muted">Sign in to sync your collection online</p>
 

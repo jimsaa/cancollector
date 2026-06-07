@@ -70,7 +70,7 @@ function denormalizedFromCan(can: Can) {
   }
 }
 
-function normalizeListing(raw: Record<string, unknown>): TradeListing {
+export function normalizeListing(raw: Record<string, unknown>): TradeListing {
   const extra = raw.extra_image_urls
   return {
     id: String(raw.id),

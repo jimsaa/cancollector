@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Can } from '../../types/can'
-import { PLACEHOLDER_CAN_IMAGE } from '../../lib/canImage'
+import { getCollectionDisplayImageUrl } from '../../lib/canImage'
 import { Card } from '../ui/Card'
 
 interface CanCardProps {
@@ -23,7 +23,7 @@ export function CanCard({ can, compact }: CanCardProps) {
       <Card className="overflow-hidden p-0">
         <div className={`relative bg-monster-dark ${compact ? 'aspect-square' : 'aspect-[3/4]'}`}>
           <img
-            src={can.image_url ?? PLACEHOLDER_CAN_IMAGE}
+            src={getCollectionDisplayImageUrl(can)}
             alt={can.name ?? 'Can'}
             className="h-full w-full object-contain p-2"
             loading="lazy"

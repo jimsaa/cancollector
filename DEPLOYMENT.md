@@ -1,4 +1,4 @@
-# Deployment Guide — Can Collector
+# Deployment Guide — CanCollector
 
 Deploy the **cancollector** repo to **Vercel** as a Progressive Web App (PWA) with HTTPS camera support for barcode scanning.
 

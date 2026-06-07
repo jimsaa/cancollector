@@ -1,4 +1,5 @@
 import type { Profile, ProfileUpdate, UserRole } from '../types/profile'
+import { logAuthError } from './supabaseDebug'
 import { supabase } from './supabase'
 
 function requireClient() {
@@ -9,6 +10,7 @@ function requireClient() {
 function normalizeProfile(raw: Record<string, unknown>): Profile {
   const legacyAdmin = raw.is_admin === true
   const role = (raw.role as UserRole | undefined) ?? (legacyAdmin ? 'admin' : 'user')
+  const username = raw.username as string | null | undefined
   return {
     id: raw.id as string,
     display_name: (raw.display_name as string | null) ?? null,
@@ -17,6 +19,12 @@ function normalizeProfile(raw: Record<string, unknown>): Profile {
     premium_status: (raw.premium_status as Profile['premium_status']) ?? 'free',
     premium_until: (raw.premium_until as string | null) ?? null,
     role,
+    username: username ? username.toLowerCase() : null,
+    public_display_name: (raw.public_display_name as string | null) ?? null,
+    bio: (raw.bio as string | null) ?? null,
+    country: (raw.country as string | null) ?? null,
+    avatar_url: (raw.avatar_url as string | null) ?? null,
+    is_public_profile: Boolean(raw.is_public_profile),
   }
 }
 
@@ -32,7 +40,7 @@ export async function upsertProfile(
   userId: string,
   email: string,
   displayName: string,
-): Promise<Profile> {
+): Promise<Profile | null> {
   const client = requireClient()
   const { data, error } = await client
     .from('profiles')
@@ -46,17 +54,60 @@ export async function upsertProfile(
       { onConflict: 'id' },
     )
     .select()
-    .single()
+    .maybeSingle()
 
   if (error) throw error
-  return normalizeProfile(data as Record<string, unknown>)
+  if (data) return normalizeProfile(data as Record<string, unknown>)
+
+  return fetchProfile(userId)
+}
+
+export async function ensureProfile(
+  userId: string,
+  email: string,
+  displayName: string,
+): Promise<{ profile: Profile | null; failed: boolean }> {
+  try {
+    const existing = await fetchProfile(userId)
+    if (existing) {
+      const needsUpdate = Boolean(displayName && existing.display_name !== displayName)
+
+      if (needsUpdate) {
+        try {
+          const updated = await updateProfile(userId, {
+            display_name: displayName || existing.display_name,
+          })
+          return { profile: updated, failed: false }
+        } catch (updateErr) {
+          logAuthError('PROFILE_ERROR', updateErr)
+          return { profile: existing, failed: false }
+        }
+      }
+      return { profile: existing, failed: false }
+    }
+
+    const created = await upsertProfile(userId, email, displayName)
+    if (created) return { profile: created, failed: false }
+
+    const afterUpsert = await fetchProfile(userId)
+    return { profile: afterUpsert, failed: !afterUpsert }
+  } catch (err) {
+    logAuthError('PROFILE_ERROR', err)
+    const fallback = await fetchProfile(userId).catch(() => null)
+    return { profile: fallback, failed: !fallback }
+  }
 }
 
 export async function updateProfile(userId: string, updates: ProfileUpdate): Promise<Profile> {
   const client = requireClient()
+  const payload = { ...updates }
+  if (payload.username) {
+    payload.username = payload.username.trim().toLowerCase()
+  }
+
   const { data, error } = await client
     .from('profiles')
-    .update(updates)
+    .update(payload)
     .eq('id', userId)
     .select()
     .single()

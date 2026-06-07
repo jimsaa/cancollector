@@ -1,5 +1,6 @@
 import type { Can, CanInsert, CanUpdate } from '../types/can'
 import { normalizeCanImageFields } from './canImage'
+import { discoverGuestCans, GUEST_CAN_STORAGE_KEYS } from './localCanDiscovery'
 import { generateId } from './id'
 
 const CANS_KEY = 'cancollector-cans'
@@ -123,19 +124,21 @@ export async function replaceLocalCans(userId: string, cans: Can[]): Promise<voi
   writeAll([...others, ...cans.map((c) => migrateCan({ ...c, user_id: userId }))])
 }
 
-/** All cans in localStorage (any local user id). */
+/** All guest cans from primary + legacy localStorage keys. */
 export function getAllLocalCans(): Can[] {
-  return readAll()
+  return discoverGuestCans().cans
 }
 
 export function hasLocalCans(): boolean {
-  return readAll().length > 0
+  return getAllLocalCans().length > 0
 }
 
 export function clearLocalCollection(): void {
-  try {
-    localStorage.removeItem(CANS_KEY)
-  } catch {
-    // ignore
+  for (const key of GUEST_CAN_STORAGE_KEYS) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // ignore
+    }
   }
 }

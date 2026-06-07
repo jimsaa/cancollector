@@ -36,18 +36,53 @@ export function findLocalMasterByBarcode(barcode: string): MasterCan | null {
   return getLocalMasterCansMerged().find((m) => (m.barcode ?? '').trim() === code) ?? null
 }
 
+export function findLocalMasterBySourceUrl(sourceUrl: string): MasterCan | null {
+  const url = sourceUrl.trim()
+  if (!url) return null
+  return getLocalMasterCansMerged().find((m) => (m.source_url ?? '').trim() === url) ?? null
+}
+
 /** Admin approval only — users cannot call this directly from UI. */
 export async function upsertLocalApprovedMasterCan(
   input: Omit<MasterCan, 'created_at' | 'updated_at'>,
 ): Promise<MasterCan> {
   const barcode = (input.barcode ?? '').trim()
-  const seedMatch = MASTER_CANS_SEED.find((m) => (m.barcode ?? '').trim() === barcode)
+  const sourceUrl = (input.source_url ?? '').trim()
+
+  if (sourceUrl) {
+    const byUrl = findLocalMasterBySourceUrl(sourceUrl)
+    if (byUrl) {
+      const extras = readExtras()
+      const existingIndex = extras.findIndex((m) => m.id === byUrl.id)
+      const now = new Date().toISOString()
+      const row = normalizeMasterCan({
+        ...input,
+        id: byUrl.id,
+        created_at: byUrl.created_at,
+        updated_at: now,
+        active: true,
+      })
+      if (existingIndex >= 0) {
+        extras[existingIndex] = row
+        writeExtras(extras)
+      }
+      return row
+    }
+  }
+
+  const seedMatch = barcode
+    ? MASTER_CANS_SEED.find((m) => (m.barcode ?? '').trim() === barcode)
+    : null
   if (seedMatch) {
     return normalizeMasterCan(seedMatch)
   }
 
   const extras = readExtras()
-  const existingIndex = extras.findIndex((m) => (m.barcode ?? '').trim() === barcode)
+  const existingIndex = barcode
+    ? extras.findIndex((m) => (m.barcode ?? '').trim() === barcode)
+    : sourceUrl
+      ? extras.findIndex((m) => (m.source_url ?? '').trim() === sourceUrl)
+      : -1
   const now = new Date().toISOString()
   const row = normalizeMasterCan({
     ...input,

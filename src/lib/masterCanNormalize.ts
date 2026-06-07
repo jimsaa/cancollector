@@ -1,10 +1,11 @@
 import type { MasterCan } from '../types/masterCan'
+import { normalizeMasterReferenceFields } from './masterReferenceImage'
 
 type RawMasterCan = Partial<MasterCan> & { region?: string | null }
 
 /** Normalize DB/seed rows — maps legacy `region` to `country`. */
 export function normalizeMasterCan(raw: RawMasterCan): MasterCan {
-  return {
+  return normalizeMasterReferenceFields({
     id: raw.id!,
     brand: raw.brand!,
     product_name: raw.product_name!,
@@ -14,13 +15,18 @@ export function normalizeMasterCan(raw: RawMasterCan): MasterCan {
     barcode: raw.barcode ?? null,
     country: raw.country ?? raw.region ?? null,
     image_url: raw.image_url ?? null,
+    reference_image_url: raw.reference_image_url ?? raw.image_url ?? null,
+    image_source: raw.image_source ?? null,
+    source: raw.source ?? null,
+    source_url: raw.source_url ?? null,
+    category: raw.category ?? null,
     rarity: raw.rarity ?? 'unknown',
     release_year: raw.release_year ?? null,
     discontinued: raw.discontinued ?? false,
     active: raw.active ?? true,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
-  }
+  })
 }
 
 export function mergeMasterCans(primary: MasterCan[], extras: MasterCan[]): MasterCan[] {

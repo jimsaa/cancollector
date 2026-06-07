@@ -1,6 +1,6 @@
-# Can Collector
+# CanCollector
 
-A mobile-first PWA for collecting Monster Energy cans. Scan barcodes, auto-fetch product data from Open Food Facts, upload images, and manage your personal collection.
+A mobile-first PWA for collecting energy drink cans. Scan barcodes, auto-fetch product data from Open Food Facts, upload images, and manage your personal collection.
 
 ## Tech Stack
 

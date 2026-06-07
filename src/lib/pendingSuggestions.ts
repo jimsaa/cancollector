@@ -1,10 +1,13 @@
+import type { OfficialProductImportRecord } from '../types/officialProductImport'
 import type { MasterCan } from '../types/masterCan'
+import type { MasterImageSource } from '../types/masterImageSource'
 import type {
   PendingCanSuggestion,
   PendingCanSuggestionInsert,
   PendingSuggestionSource,
   PendingSuggestionStatus,
 } from '../types/pendingSuggestion'
+import { createLocalOfficialPendingSuggestions } from './localOfficialProductImport'
 import {
   createLocalPendingSuggestion,
   fetchLocalPendingSuggestions,
@@ -94,6 +97,70 @@ export async function maybeCreatePendingSuggestion(
   return data as PendingCanSuggestion
 }
 
+export async function importOfficialProductsToPending(
+  products: OfficialProductImportRecord[],
+): Promise<number> {
+  if (useLocalPendingStore()) {
+    return createLocalOfficialPendingSuggestions(products)
+  }
+
+  const client = requireClient()
+  let imported = 0
+
+  for (const product of products) {
+    const pageUrl = product.product_page_url.trim()
+    const nameKey = product.product_name.trim()
+
+    const { data: existingByUrl } = await client
+      .from('pending_can_suggestions')
+      .select('id')
+      .eq('status', 'pending')
+      .eq('product_page_url', pageUrl)
+      .maybeSingle()
+
+    if (existingByUrl) continue
+
+    const { data: existingByName } = await client
+      .from('pending_can_suggestions')
+      .select('id')
+      .eq('status', 'pending')
+      .ilike('product_name', nameKey)
+      .maybeSingle()
+
+    if (existingByName) continue
+
+    const { data: existingMaster } = await client
+      .from('master_cans')
+      .select('id')
+      .eq('source_url', pageUrl)
+      .maybeSingle()
+
+    if (existingMaster) continue
+
+    const row: PendingCanSuggestionInsert = {
+      barcode: null,
+      product_name: product.product_name,
+      brand: product.brand,
+      category: product.category,
+      flavor: product.flavor,
+      variant_name: product.flavor,
+      volume: null,
+      country: 'US',
+      image_url: product.image_url,
+      product_page_url: pageUrl,
+      source_url: pageUrl,
+      source: 'official_site',
+      submitted_by: null,
+    }
+
+    const { error } = await client.from('pending_can_suggestions').insert({ ...row, status: 'pending' })
+    if (error) throw error
+    imported++
+  }
+
+  return imported
+}
+
 export interface ApproveSuggestionInput {
   brand: string
   product_name: string
@@ -101,16 +168,43 @@ export interface ApproveSuggestionInput {
   variant_name?: string | null
   volume?: string | null
   country?: string | null
-  barcode: string
+  category?: string | null
+  barcode?: string | null
+  reference_image_url?: string | null
   image_url?: string | null
+  image_source?: MasterImageSource | null
+  source?: string | null
+  source_url?: string | null
   rarity?: MasterCan['rarity']
   release_year?: number | null
   discontinued?: boolean
 }
 
+async function findCloudMasterBySourceUrl(sourceUrl: string): Promise<MasterCan | null> {
+  const client = requireClient()
+  const { data } = await client
+    .from('master_cans')
+    .select('*')
+    .eq('source_url', sourceUrl.trim())
+    .maybeSingle()
+  return data ? normalizeMasterCan(data as MasterCan) : null
+}
+
 async function upsertCloudMasterCan(master: ApproveSuggestionInput): Promise<MasterCan> {
   const client = requireClient()
-  const barcode = master.barcode.trim()
+  const barcode = master.barcode?.trim() ?? null
+  const sourceUrl = master.source_url?.trim() ?? null
+
+  const reference_image_url =
+    master.reference_image_url?.trim() || master.image_url?.trim() || null
+  const image_source: MasterImageSource =
+    master.image_source ??
+    (master.source === 'official_site'
+      ? 'official_site'
+      : reference_image_url
+        ? 'manual'
+        : 'placeholder')
+
   const payload = {
     brand: master.brand,
     product_name: master.product_name,
@@ -118,29 +212,50 @@ async function upsertCloudMasterCan(master: ApproveSuggestionInput): Promise<Mas
     variant_name: master.variant_name ?? null,
     volume: master.volume ?? null,
     country: master.country ?? null,
+    category: master.category ?? null,
     barcode,
-    image_url: master.image_url ?? null,
+    reference_image_url,
+    image_url: reference_image_url,
+    image_source,
+    source: master.source ?? null,
+    source_url: sourceUrl,
     rarity: master.rarity ?? 'unknown',
     release_year: master.release_year ?? null,
     discontinued: master.discontinued ?? false,
     active: true,
   }
 
-  const { data: existing } = await client
-    .from('master_cans')
-    .select('*')
-    .eq('barcode', barcode)
-    .maybeSingle()
+  if (sourceUrl) {
+    const existingByUrl = await findCloudMasterBySourceUrl(sourceUrl)
+    if (existingByUrl) {
+      const { data, error } = await client
+        .from('master_cans')
+        .update(payload)
+        .eq('id', existingByUrl.id)
+        .select()
+        .single()
+      if (error) throw error
+      return normalizeMasterCan(data as MasterCan)
+    }
+  }
 
-  if (existing) {
-    const { data, error } = await client
+  if (barcode) {
+    const { data: existing } = await client
       .from('master_cans')
-      .update(payload)
-      .eq('id', existing.id)
-      .select()
-      .single()
-    if (error) throw error
-    return normalizeMasterCan(data as MasterCan)
+      .select('*')
+      .eq('barcode', barcode)
+      .maybeSingle()
+
+    if (existing) {
+      const { data, error } = await client
+        .from('master_cans')
+        .update(payload)
+        .eq('id', existing.id)
+        .select()
+        .single()
+      if (error) throw error
+      return normalizeMasterCan(data as MasterCan)
+    }
   }
 
   const { data, error } = await client.from('master_cans').insert(payload).select().single()
@@ -158,6 +273,7 @@ export async function approvePendingSuggestion(
   master: ApproveSuggestionInput,
 ): Promise<ApproveSuggestionResult> {
   let approvedMaster: MasterCan
+  const barcode = master.barcode?.trim() ?? ''
 
   if (useLocalPendingStore()) {
     approvedMaster = await upsertLocalApprovedMasterCan({
@@ -168,8 +284,16 @@ export async function approvePendingSuggestion(
       variant_name: master.variant_name ?? null,
       volume: master.volume ?? null,
       country: master.country ?? null,
-      barcode: master.barcode.trim(),
-      image_url: master.image_url ?? null,
+      category: master.category ?? null,
+      barcode: barcode || null,
+      reference_image_url:
+        master.reference_image_url?.trim() || master.image_url?.trim() || null,
+      image_url: master.reference_image_url?.trim() || master.image_url?.trim() || null,
+      image_source:
+        master.image_source ??
+        (suggestion.source === 'official_site' ? 'official_site' : null),
+      source: master.source ?? suggestion.source ?? null,
+      source_url: master.source_url ?? suggestion.source_url ?? suggestion.product_page_url ?? null,
       rarity: master.rarity ?? 'unknown',
       release_year: master.release_year ?? null,
       discontinued: master.discontinued ?? false,
@@ -188,10 +312,9 @@ export async function approvePendingSuggestion(
     if (updateError) throw updateError
   }
 
-  const linkedCans = await linkUserCansToMasterByBarcode(
-    master.barcode.trim(),
-    approvedMaster.id,
-  )
+  const linkedCans = barcode
+    ? await linkUserCansToMasterByBarcode(barcode, approvedMaster.id)
+    : 0
 
   return { master: approvedMaster, linkedCans }
 }

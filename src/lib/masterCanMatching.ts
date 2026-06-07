@@ -1,6 +1,7 @@
 import type { Can, CanInsert } from '../types/can'
 import type { MasterCan, MasterCanWithStatus } from '../types/masterCan'
 import { getDefaultProductSource, resolveCanImage } from './canImage'
+import { getMasterReferenceImageUrl } from './masterReferenceImage'
 
 export function normalizeBarcode(barcode: string | null | undefined): string {
   return (barcode ?? '').trim()
@@ -89,7 +90,7 @@ export function attachMasterCanLink(
   const master = findMasterByBarcode(masters, insert.barcode)
   if (!master) return insert
 
-  const imageFields = resolveInsertImage(insert, master.image_url)
+  const imageFields = resolveInsertImage(insert, getMasterReferenceImageUrl(master))
 
   return {
     ...insert,
@@ -119,7 +120,7 @@ export function attachMasterStatus(
 }
 
 export function masterCanToWishlistInsert(master: MasterCan): CanInsert {
-  const master_image_url = master.image_url
+  const master_image_url = getMasterReferenceImageUrl(master)
   const resolved = resolveCanImage(
     master_image_url ? 'master_database' : 'placeholder',
     { master_image_url },

@@ -149,6 +149,30 @@ export function getSaveImageFields(data: {
   }
 }
 
+/** Reference/catalog image for collection grids and completion views (not user photos). */
+export function getReferenceImageUrl(candidates: ImageCandidates): string | null {
+  return candidates.master_image_url?.trim() || candidates.off_image_url?.trim() || null
+}
+
+export function getUserCanImageUrl(candidates: ImageCandidates): string | null {
+  return candidates.user_image_url?.trim() || null
+}
+
+export function getCollectionDisplayImageUrl(candidates: ImageCandidates): string {
+  const reference = getReferenceImageUrl(candidates)
+  if (reference) return reference
+  return PLACEHOLDER_CAN_IMAGE
+}
+
+/** Trade listings prefer the collector's own photo when available. */
+export function getTradeDisplayImageUrl(candidates: ImageCandidates): string {
+  const user = getUserCanImageUrl(candidates)
+  if (user) return user
+  const reference = getReferenceImageUrl(candidates)
+  if (reference) return reference
+  return PLACEHOLDER_CAN_IMAGE
+}
+
 /** @deprecated Use getSaveImageFields */
 export function getSaveImageUrl(data: {
   user_image_url?: string

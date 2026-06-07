@@ -26,6 +26,10 @@ interface CanImageUploadProps {
   disabled?: boolean
   showSourceLabel?: boolean
   productImageButtonLabel?: string
+  /** Override preview image (e.g. user photo only on detail tab). */
+  previewUrl?: string | null
+  /** Hide source toggles — upload/remove user photo only. */
+  userPhotoOnly?: boolean
 }
 
 export function CanImageUpload({
@@ -39,8 +43,10 @@ export function CanImageUpload({
   disabled,
   showSourceLabel = false,
   productImageButtonLabel = 'Use Default Product Image',
+  previewUrl,
+  userPhotoOnly = false,
 }: CanImageUploadProps) {
-  const preview = getDisplayImageUrl(data)
+  const preview = previewUrl ?? getDisplayImageUrl(data)
   const hasUserPhoto = Boolean(data.user_image_url?.trim())
   const defaultSource = getDefaultProductSource({
     master_image_url: data.master_image_url,
@@ -54,7 +60,9 @@ export function CanImageUpload({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-monster-muted">Can Image</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-monster-muted">
+          {userPhotoOnly ? 'My Can Photo' : 'Can Image'}
+        </p>
         {showSourceLabel ? (
           <span className="rounded bg-monster-dark px-2 py-0.5 text-[10px] text-monster-muted">
             Source: {IMAGE_SOURCE_LABELS[data.image_source]}
@@ -119,30 +127,32 @@ export function CanImageUpload({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Button
-          type="button"
-          variant={usingUserPhoto ? 'primary' : 'secondary'}
-          className="py-3"
-          disabled={disabled || uploading || !hasUserPhoto}
-          onClick={() => setSource('user')}
-        >
-          <Camera size={18} />
-          Use My Photo
-        </Button>
-        <Button
-          type="button"
-          variant={usingDefault ? 'primary' : 'secondary'}
-          className="py-3"
-          disabled={disabled || uploading}
-          onClick={() => setSource(defaultSource)}
-        >
-          <ImageIcon size={18} />
-          {productImageButtonLabel}
-        </Button>
-      </div>
+      {!userPhotoOnly ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button
+            type="button"
+            variant={usingUserPhoto ? 'primary' : 'secondary'}
+            className="py-3"
+            disabled={disabled || uploading || !hasUserPhoto}
+            onClick={() => setSource('user')}
+          >
+            <Camera size={18} />
+            Use My Photo
+          </Button>
+          <Button
+            type="button"
+            variant={usingDefault ? 'primary' : 'secondary'}
+            className="py-3"
+            disabled={disabled || uploading}
+            onClick={() => setSource(defaultSource)}
+          >
+            <ImageIcon size={18} />
+            {productImageButtonLabel}
+          </Button>
+        </div>
+      ) : null}
 
-      {showSourceLabel ? (
+      {showSourceLabel && !userPhotoOnly ? (
         <p className="text-xs text-monster-muted">
           Default product image uses master database, then Open Food Facts front photo, then a
           generic placeholder.

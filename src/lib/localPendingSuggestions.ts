@@ -7,11 +7,33 @@ import { generateId } from './id'
 
 const KEY = 'cancollector-pending-suggestions'
 
+const EMPTY_FIELDS = {
+  brand: null,
+  category: null,
+  flavor: null,
+  variant_name: null,
+  volume: null,
+  country: null,
+  product_page_url: null,
+  source_url: null,
+} as const
+
+function normalizeRow(raw: PendingCanSuggestion): PendingCanSuggestion {
+  return {
+    ...EMPTY_FIELDS,
+    ...raw,
+    barcode: raw.barcode ?? null,
+    product_name: raw.product_name ?? null,
+    image_url: raw.image_url ?? null,
+    submitted_by: raw.submitted_by ?? null,
+  }
+}
+
 function readAll(): PendingCanSuggestion[] {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return []
-    return JSON.parse(raw) as PendingCanSuggestion[]
+    return (JSON.parse(raw) as PendingCanSuggestion[]).map(normalizeRow)
   } catch {
     return []
   }
@@ -31,35 +53,53 @@ export function fetchLocalPendingSuggestions(
 
 export function findLocalPendingByBarcode(barcode: string): PendingCanSuggestion | null {
   const code = barcode.trim()
-  return readAll().find((s) => s.barcode.trim() === code && s.status === 'pending') ?? null
+  return readAll().find((s) => (s.barcode ?? '').trim() === code && s.status === 'pending') ?? null
 }
 
 export function createLocalPendingSuggestion(
   input: PendingCanSuggestionInsert,
 ): PendingCanSuggestion {
-  const existing = findLocalPendingByBarcode(input.barcode)
-  if (existing) {
-    const updated: PendingCanSuggestion = {
-      ...existing,
-      product_name: input.product_name ?? existing.product_name,
-      image_url: input.image_url ?? existing.image_url,
-      source: input.source,
-      submitted_by: input.submitted_by ?? existing.submitted_by,
+  if (input.barcode?.trim()) {
+    const existing = findLocalPendingByBarcode(input.barcode)
+    if (existing) {
+      const updated: PendingCanSuggestion = {
+        ...existing,
+        product_name: input.product_name ?? existing.product_name,
+        image_url: input.image_url ?? existing.image_url,
+        source: input.source,
+        submitted_by: input.submitted_by ?? existing.submitted_by,
+        brand: input.brand ?? existing.brand,
+        category: input.category ?? existing.category,
+        flavor: input.flavor ?? existing.flavor,
+        variant_name: input.variant_name ?? existing.variant_name,
+        volume: input.volume ?? existing.volume,
+        country: input.country ?? existing.country,
+        product_page_url: input.product_page_url ?? existing.product_page_url,
+        source_url: input.source_url ?? existing.source_url,
+      }
+      writeAll(readAll().map((s) => (s.id === existing.id ? updated : s)))
+      return updated
     }
-    writeAll(readAll().map((s) => (s.id === existing.id ? updated : s)))
-    return updated
   }
 
-  const created: PendingCanSuggestion = {
+  const created: PendingCanSuggestion = normalizeRow({
     id: generateId(),
-    barcode: input.barcode.trim(),
+    barcode: input.barcode?.trim() ?? null,
     product_name: input.product_name ?? null,
+    brand: input.brand ?? null,
+    category: input.category ?? null,
+    flavor: input.flavor ?? null,
+    variant_name: input.variant_name ?? null,
+    volume: input.volume ?? null,
+    country: input.country ?? null,
     image_url: input.image_url ?? null,
+    product_page_url: input.product_page_url ?? null,
+    source_url: input.source_url ?? null,
     source: input.source,
     submitted_by: input.submitted_by ?? null,
     created_at: new Date().toISOString(),
     status: 'pending',
-  }
+  })
   writeAll([created, ...readAll()])
   return created
 }
@@ -71,7 +111,7 @@ export function updateLocalPendingSuggestion(
   const items = readAll()
   const index = items.findIndex((s) => s.id === id)
   if (index === -1) throw new Error('Suggestion not found')
-  const updated = { ...items[index], ...patch }
+  const updated = normalizeRow({ ...items[index], ...patch })
   items[index] = updated
   writeAll(items)
   return updated

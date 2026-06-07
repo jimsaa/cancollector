@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAuth } from '../hooks/useAuth'
+import { getTradeDisplayImageUrl } from '../lib/canImage'
 import { fetchCanById } from '../lib/cans'
 import { fetchTradeListingById } from '../lib/tradeListings'
 import type { Can } from '../types/can'
@@ -59,7 +60,7 @@ export function TradeListingDetailPage() {
   }
 
   const location = [listing.location_city, listing.location_country].filter(Boolean).join(', ')
-  const mainImage = can?.image_url
+  const mainImage = can ? getTradeDisplayImageUrl(can) : null
   const allImages = [mainImage, ...listing.extra_image_urls].filter(Boolean) as string[]
   const currentImage = allImages[galleryIndex] ?? null
 

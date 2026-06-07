@@ -23,7 +23,7 @@ export function TradeSharePage() {
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <Logo size="sm" />
           <div>
-            <p className="text-xs uppercase tracking-wide text-monster-green">Can Collector</p>
+            <p className="text-xs uppercase tracking-wide text-monster-green">CanCollector</p>
             <p className="text-sm font-semibold text-white">Shared Trade List</p>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { GuestMessagingProvider } from './hooks/useGuestMessaging'
@@ -11,16 +12,25 @@ import { TradePage } from './pages/TradePage'
 import { WishlistPage } from './pages/WishlistPage'
 import { MissingCansPage } from './pages/MissingCansPage'
 import { TradeSharePage } from './pages/TradeSharePage'
+import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { ProfileSettingsPage } from './pages/ProfileSettingsPage'
+import { PublicProfilePage } from './pages/PublicProfilePage'
 import { PremiumPage } from './pages/PremiumPage'
 import { ImportLocalPage } from './pages/ImportLocalPage'
 import { StatisticsPage } from './pages/StatisticsPage'
 import { BackupPage } from './pages/BackupPage'
 import { TradeListingDetailPage } from './pages/TradeListingDetailPage'
 import { AdminMasterCansPage } from './pages/AdminMasterCansPage'
-import { shouldPromptLocalImport } from './lib/localImport'
+import { AdminImportsPage } from './pages/AdminImportsPage'
+import { AdminMonsterProductsImportPage } from './pages/AdminMonsterProductsImportPage'
+import {
+  checkLocalImportState,
+  logLocalImportCheck,
+  shouldPromptLocalImport,
+} from './lib/localImport'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { loading, isConfigured } = useAuth()
@@ -32,6 +42,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function ImportGate({ children }: { children: React.ReactNode }) {
   const { user, loading, isCloudSynced } = useAuth()
   const location = useLocation()
+
+  useEffect(() => {
+    if (!isCloudSynced || loading || !user) return
+    logLocalImportCheck(checkLocalImportState(user.id))
+  }, [user?.id, isCloudSynced, loading])
 
   if (!isCloudSynced || loading || !user) return <>{children}</>
 
@@ -60,8 +75,10 @@ function AppRoutes() {
       <InstallPrompt />
       <Routes>
         <Route path="/trade/share" element={<TradeSharePage />} />
+        <Route path="/u/:username" element={<PublicProfilePage />} />
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} />
         <Route
           path="/import-local"
@@ -81,9 +98,12 @@ function AppRoutes() {
         <Route path="/trade/listing/:id" element={<ProtectedRoute><TradeListingDetailPage /></ProtectedRoute>} />
         <Route path="/stats" element={<ProtectedRoute><ImportGate><StatisticsPage /></ImportGate></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/profile/settings" element={<ProtectedRoute><ProfileSettingsPage /></ProtectedRoute>} />
         <Route path="/backup" element={<ProtectedRoute><BackupPage /></ProtectedRoute>} />
         <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} />
         <Route path="/admin/master-cans" element={<AdminMasterCansPage />} />
+        <Route path="/admin/imports" element={<AdminImportsPage />} />
+        <Route path="/admin/imports/monster-products" element={<AdminMonsterProductsImportPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

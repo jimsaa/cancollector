@@ -8,16 +8,23 @@ export interface PremiumFeatures {
   maxTradeImages: number
   canUseTradeVideo: boolean
   canUsePriorityTradeBadge: boolean
+  /** Free: 6 recent cans on public profile; premium: larger gallery */
+  maxPublicRecentCans: number
+  canUseCustomProfileTheme: boolean
+  canUseFeaturedCans: boolean
+  canUseVerifiedCollectorBadge: boolean
 }
 
-export function isPremiumActive(profile: Profile | null): boolean {
+export function isPremiumActive(
+  profile: Pick<Profile, 'premium_status' | 'premium_until'> | null,
+): boolean {
   if (!profile || profile.premium_status !== 'premium') return false
   if (profile.premium_until && new Date(profile.premium_until) < new Date()) return false
   return true
 }
 
 export function getPremiumFeatures(
-  profile: Profile | null,
+  profile: Pick<Profile, 'premium_status' | 'premium_until'> | null,
   options: { isCloudMode: boolean },
 ): PremiumFeatures {
   const isPremium = isPremiumActive(profile)
@@ -29,6 +36,10 @@ export function getPremiumFeatures(
     maxTradeImages: isPremium ? 5 : 2,
     canUseTradeVideo: true,
     canUsePriorityTradeBadge: isPremium,
+    maxPublicRecentCans: isPremium ? 24 : 6,
+    canUseCustomProfileTheme: isPremium,
+    canUseFeaturedCans: isPremium,
+    canUseVerifiedCollectorBadge: isPremium,
   }
 }
 

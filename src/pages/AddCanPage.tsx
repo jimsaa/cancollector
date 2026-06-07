@@ -13,17 +13,17 @@ import {
   type AddCanWizardStep,
 } from '../components/addCan/AddCanWizardProgress'
 import { AddCanStepScan } from '../components/addCan/AddCanStepScan'
-import { AddCanStepMatch, type OffLookupStatus } from '../components/addCan/AddCanStepMatch'
+import { AddCanStepMatch } from '../components/addCan/AddCanStepMatch'
 import { AddCanStepEdit } from '../components/addCan/AddCanStepEdit'
 import { AddCanStepSummary } from '../components/addCan/AddCanStepSummary'
 import { useAuth } from '../hooks/useAuth'
 import { useGuestMessaging } from '../hooks/useGuestMessaging'
 import { useCans } from '../hooks/useCans'
 import { useCanImageUpload } from '../hooks/useCanImageUpload'
-import { fetchProductByBarcode } from '../lib/openFoodFacts'
 import { findDuplicateCan } from '../lib/duplicates'
 import { fetchActiveMasterCans } from '../lib/masterCans'
-import { attachMasterCanLink, findMasterByBarcode } from '../lib/masterCanMatching'
+import { attachMasterCanLink } from '../lib/masterCanMatching'
+import { lookupBarcodeProduct, type OffLookupStatus } from '../lib/scanProductLookup'
 import { getSaveImageFields } from '../lib/canImage'
 import { inferSuggestionSource, maybeCreatePendingSuggestion } from '../lib/pendingSuggestions'
 import { useGuestStorage } from '../lib/guestStorage'
@@ -48,7 +48,8 @@ export function AddCanPage() {
   const [matchedMaster, setMatchedMaster] = useState<MasterCan | null>(null)
   const [duplicate, setDuplicate] = useState<Can | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
-  const [offStatus, setOffStatus] = useState<OffLookupStatus>('not_found')
+  const [offStatus, setOffStatus] = useState<OffLookupStatus>('skipped')
+  const [primarySource, setPrimarySource] = useState<'master_database' | 'open_food_facts' | 'none'>('none')
   const [cameraError, setCameraError] = useState<CameraErrorInfo | null>(null)
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -66,7 +67,8 @@ export function AddCanPage() {
     setMatchedMaster(null)
     setDuplicate(null)
     setManualBarcode('')
-    setOffStatus('not_found')
+    setOffStatus('skipped')
+    setPrimarySource('none')
     imageUpload.clearUploadState()
   }, [imageUpload])
 
@@ -92,35 +94,14 @@ export function AddCanPage() {
       imageUpload.clearUploadState()
 
       try {
-        let product = null
-        let offLookup: OffLookupStatus = 'not_found'
+        const result = await lookupBarcodeProduct(barcode, emptyFormData)
 
-        try {
-          product = await fetchProductByBarcode(barcode)
-          offLookup = product ? 'found' : 'not_found'
-        } catch {
-          offLookup = 'error'
-        }
+        setMatchedMaster(result.master)
+        setForm(result.form)
+        setOffStatus(result.offStatus)
+        setPrimarySource(result.primarySource)
 
-        const masters = await fetchActiveMasterCans('all')
-        const master = findMasterByBarcode(masters, barcode)
-
-        const nextForm: CanFormData = {
-          ...emptyFormData(),
-          barcode,
-          name: product?.name ?? master?.product_name ?? '',
-          brand: product?.brand ?? master?.brand ?? 'Monster',
-          flavor: product?.flavor ?? master?.flavor ?? '',
-          volume: product?.volume ?? master?.volume ?? '',
-          country: product?.country ?? master?.country ?? '',
-          off_image_url: product?.image_url ?? '',
-          master_image_url: master?.image_url ?? '',
-          rarity: master?.rarity ?? 'unknown',
-        }
-
-        setMatchedMaster(master)
-        setForm(applyAutoImageToForm(nextForm))
-        setOffStatus(offLookup)
+        const nextForm = result.form
 
         if (checkDuplicate(barcode, nextForm.country, nextForm.country_variant)) {
           return
@@ -132,6 +113,7 @@ export function AddCanPage() {
         setForm(nextForm)
         setMatchedMaster(null)
         setOffStatus('error')
+        setPrimarySource('none')
 
         if (checkDuplicate(barcode, '', '')) return
 
@@ -300,6 +282,7 @@ export function AddCanPage() {
           <AddCanStepMatch
             data={form}
             offStatus={offStatus}
+            primarySource={primarySource}
             matchedMaster={matchedMaster}
             onBack={resetToScan}
             onContinue={() => setStep('edit')}

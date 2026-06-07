@@ -1,4 +1,5 @@
 import logoUrl from '../../assets/logo.png'
+import { APP_NAME } from '../../constants/branding'
 
 type LogoSize = 'sm' | 'md' | 'lg' | 'xl'
 
@@ -15,7 +16,7 @@ interface LogoProps {
   alt?: string
 }
 
-export function Logo({ size = 'sm', className = '', alt = 'Can Collector' }: LogoProps) {
+export function Logo({ size = 'sm', className = '', alt = APP_NAME }: LogoProps) {
   const px = typeof size === 'number' ? size : sizeMap[size]
 
   return (

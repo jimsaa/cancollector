@@ -1,8 +1,8 @@
-# Can Collector — MVP Manual Test Checklist
+# CanCollector — MVP Manual Test Checklist
 
 Use this document to verify core guest, cloud, trade, wishlist, and admin flows before release.
 
-**App:** Can Collector (`monster-collector`)  
+**App:** CanCollector (`monster-collector`)  
 **Dev URL:** [http://localhost:3003](http://localhost:3003)  
 **Last updated:** MVP v1 (master database, add-can wizard, admin approval)
 
