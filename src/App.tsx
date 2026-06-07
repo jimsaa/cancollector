@@ -48,8 +48,7 @@ function ImportGate({ children }: { children: React.ReactNode }) {
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isConfigured } = useAuth()
 
-  if (!isConfigured) return <Navigate to="/" replace />
-  if (loading) return <LoadingSpinner fullPage />
+  if (isConfigured && loading) return <LoadingSpinner fullPage />
   if (user) return <Navigate to="/" replace />
 
   return <>{children}</>

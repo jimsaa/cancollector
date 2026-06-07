@@ -28,6 +28,8 @@ The app uses email + password sign-in with user profiles.
 2. Ensure **Email** is enabled (it is by default).
 3. Optional: under **Authentication → Settings**, turn off **Confirm email** during development so you can sign up and sign in immediately without verifying email.
 
+**Full checklist:** See **[`SUPABASE_AUTH_CHECKLIST.md`](./SUPABASE_AUTH_CHECKLIST.md)** for step-by-step auth, SQL, env vars, and testing.
+
 ### App modes
 
 | Mode | When | Behavior |
@@ -51,7 +53,7 @@ Paste and run **[`migration.sql`](./migration.sql)** — the complete, idempoten
 - Auto-create profile trigger on `auth.users` insert
 - `can-images` storage bucket + policies
 
-**Existing projects:** If you already ran an older schema, run [`migration-auth.sql`](./migration-auth.sql) to add profiles and backfill users, or re-run `migration.sql` (safe to re-run).
+**Existing projects:** If you already ran an older schema, run [`migration-auth-complete.sql`](./migration-auth-complete.sql) for profiles, roles, and RLS, or re-run `migration.sql` (safe to re-run).
 
 **Global can database:** After the main migration, run [`migration-master-cans.sql`](./migration-master-cans.sql) to create `master_cans`, link user cans via `master_can_id`, and seed starter data.
 

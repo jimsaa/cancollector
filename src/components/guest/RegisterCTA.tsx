@@ -30,11 +30,11 @@ export function RegisterCTA({ onDismiss, onLearnMore, canRegister }: RegisterCTA
             Free registration — no payment required. Premium features are optional.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {canRegister ? (
-              <Link to="/register">
-                <Button className="py-2 text-xs">Create Free Account</Button>
-              </Link>
-            ) : null}
+            <Link to="/register">
+              <Button className="py-2 text-xs">
+                {canRegister ? 'Create Free Account' : 'Set Up Cloud Account'}
+              </Button>
+            </Link>
             {onLearnMore ? (
               <Button variant="secondary" className="py-2 text-xs" onClick={onLearnMore}>
                 Learn More

@@ -309,7 +309,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setState((prev) => ({ ...prev, error: null }))
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
 
     if (error) {
 
@@ -317,6 +317,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       throw error
 
+    }
+
+    if (data.session?.user) {
+      applyStorageMode(data.session.user)
     }
 
   }, [])
@@ -324,41 +328,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const signUp = useCallback(async (displayName: string, email: string, password: string) => {
-
     if (!supabase) throw new Error('Supabase is not configured')
 
     setState((prev) => ({ ...prev, error: null }))
 
     const trimmedName = displayName.trim()
+    const trimmedEmail = email.trim()
 
     const { data, error } = await supabase.auth.signUp({
-
-      email,
-
+      email: trimmedEmail,
       password,
-
       options: {
-
         data: { display_name: trimmedName },
-
       },
-
     })
 
     if (error) {
-
       setState((prev) => ({ ...prev, error: error.message }))
-
       throw error
-
     }
 
     if (data.user) {
-
-      await upsertProfile(data.user.id, email, trimmedName)
-
+      await upsertProfile(data.user.id, trimmedEmail, trimmedName)
     }
 
+    // Auto sign-in when email confirmation is disabled (dev) or session returned
+    if (!data.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      })
+      if (signInError && !signInError.message.toLowerCase().includes('confirm')) {
+        setState((prev) => ({ ...prev, error: signInError.message }))
+        throw signInError
+      }
+    }
   }, [])
 
 

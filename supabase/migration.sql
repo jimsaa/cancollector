@@ -27,14 +27,15 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, display_name)
+  insert into public.profiles (id, email, display_name, role)
   values (
     new.id,
     new.email,
     coalesce(
       new.raw_user_meta_data->>'display_name',
       split_part(new.email, '@', 1)
-    )
+    ),
+    'user'
   )
   on conflict (id) do update set
     email = excluded.email,
@@ -55,14 +56,16 @@ create table if not exists public.profiles (
   updated_at timestamptz default now() not null,
   premium_status text default 'free' not null
     check (premium_status in ('free', 'premium')),
-  premium_until timestamptz
+  premium_until timestamptz,
+  role text default 'user' not null check (role in ('user', 'admin'))
 );
 
 comment on table public.profiles is 'User profiles linked to auth.users';
 
 -- Add updated_at if upgrading from an older schema
 alter table public.profiles
-  add column if not exists updated_at timestamptz default now() not null;
+  add column if not exists updated_at timestamptz default now() not null,
+  add column if not exists role text default 'user' not null;
 
 -- ------------------------------------------------------------
 -- 2. CANS TABLE

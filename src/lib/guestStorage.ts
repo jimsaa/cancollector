@@ -2,9 +2,9 @@ import { isSupabaseConfigured } from './supabase'
 
 /**
  * Runtime flag: when true, cans/trade listings use localStorage (guest).
- * Set by AuthContext on login/logout.
+ * Defaults to guest until AuthContext confirms a logged-in cloud session.
  */
-let guestStorageActive = !isSupabaseConfigured
+let guestStorageActive = true
 
 export function setGuestStorageActive(active: boolean): void {
   guestStorageActive = active

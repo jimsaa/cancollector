@@ -63,16 +63,17 @@ export function GuestModeModal({ open, onClose, canRegister }: GuestModeModalPro
         </p>
 
         <div className="mt-5 flex flex-col gap-2">
-          {canRegister ? (
-            <Link to="/register" onClick={onClose}>
-              <Button fullWidth>Create Free Account</Button>
-            </Link>
-          ) : (
-            <p className="rounded-lg border border-monster-border bg-monster-dark px-3 py-2 text-xs text-monster-muted">
-              Online accounts are not enabled in this build yet. Your collection still works fully
-              on this device.
+          <Link to="/register" onClick={onClose}>
+            <Button fullWidth>
+              {canRegister ? 'Create Free Account' : 'Set Up Cloud Account'}
+            </Button>
+          </Link>
+          {!canRegister ? (
+            <p className="text-center text-xs text-monster-muted">
+              Add Supabase keys to <code className="text-monster-green">.env</code> to enable cloud
+              registration. Guest mode works without it.
             </p>
-          )}
+          ) : null}
           <Button variant="secondary" fullWidth onClick={onClose}>
             Got it
           </Button>

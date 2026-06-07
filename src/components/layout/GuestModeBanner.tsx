@@ -20,9 +20,9 @@ export function GuestModeBanner() {
               <Button className="px-3 py-1.5 text-xs">Create Free Account</Button>
             </Link>
           ) : (
-            <Button className="px-3 py-1.5 text-xs" onClick={openLearnMore}>
-              Create Free Account
-            </Button>
+            <Link to="/register">
+              <Button className="px-3 py-1.5 text-xs">Set Up Cloud Sync</Button>
+            </Link>
           )}
           <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={openLearnMore}>
             Learn More

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Can, CanInsert, CanUpdate } from '../types/can'
 import { createCan, deleteCan, fetchCans, importCans, updateCan } from '../lib/cans'
+import { useAuth } from './useAuth'
 
 export function useCans(userId: string | undefined, maxActiveListings = 999) {
+  const { isCloudSynced } = useAuth()
   const [cans, setCans] = useState<Can[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +30,7 @@ export function useCans(userId: string | undefined, maxActiveListings = 999) {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, isCloudSynced])
 
   const add = useCallback(
     async (can: CanInsert) => {
