@@ -1,225 +1,413 @@
 import { useEffect, useState } from 'react'
+
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+
+import { ArrowLeft, Save, Trash2 } from 'lucide-react'
+
 import { Layout } from '../components/layout/Layout'
+
+import {
+  applyAutoImageToForm,
+  CanFormFields,
+  canToFormData,
+  formDataToInsert,
+  type CanFormData,
+} from '../components/cans/CanForm'
+
+import { TradeListingEditor } from '../components/trade/TradeListingEditor'
+
 import { Card } from '../components/ui/Card'
+
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
+
 import { EmptyState } from '../components/ui/EmptyState'
+
 import { useAuth } from '../hooks/useAuth'
+
+import { useGuestMessaging } from '../hooks/useGuestMessaging'
+
 import { useCans } from '../hooks/useCans'
+
+import { useCanImageUpload } from '../hooks/useCanImageUpload'
+
+import { getSaveImageFields } from '../lib/canImage'
+
 import { fetchCanById } from '../lib/cans'
+
+import { deleteCanImage } from '../lib/storage'
+
+import { useGuestStorage } from '../lib/guestStorage'
+
 import type { Can } from '../types/can'
 
-function MetaRow({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null
-  return (
-    <div className="flex justify-between gap-4 border-b border-monster-border py-2 last:border-0">
-      <span className="text-xs uppercase tracking-wide text-monster-muted">{label}</span>
-      <span className="text-right text-sm text-white">{value}</span>
-    </div>
-  )
-}
+
 
 export function CanDetailPage() {
+
   const { id } = useParams<{ id: string }>()
-  const { user } = useAuth()
-  const { update, remove } = useCans(user?.id)
+
+  const { storageUserId, premiumFeatures } = useAuth()
+
+  const { triggerRegisterCTA } = useGuestMessaging()
+
+  const { update, remove } = useCans(storageUserId, premiumFeatures.maxActiveTradeListings)
+
   const navigate = useNavigate()
 
+  const imageUpload = useCanImageUpload(storageUserId, id)
+
+
+
   const [can, setCan] = useState<Can | null>(null)
+
+  const [form, setForm] = useState<CanFormData | null>(null)
+
   const [loading, setLoading] = useState(true)
+
   const [error, setError] = useState<string | null>(null)
+
   const [saving, setSaving] = useState(false)
+
   const [deleting, setDeleting] = useState(false)
-  const [notes, setNotes] = useState('')
-  const [purchaseDate, setPurchaseDate] = useState('')
+
+  const [message, setMessage] = useState<string | null>(null)
+
+
 
   useEffect(() => {
+
     if (!id) return
+
     setLoading(true)
+
     fetchCanById(id)
+
       .then((data) => {
+
         if (!data) {
+
           setError('Can not found')
+
           return
+
         }
+
         setCan(data)
-        setNotes(data.notes ?? '')
-        setPurchaseDate(data.purchase_date ?? '')
+
+        setForm(canToFormData(data))
+
       })
+
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
+
       .finally(() => setLoading(false))
+
   }, [id])
 
-  const saveField = async (updates: Parameters<typeof update>[1]) => {
-    if (!can) return
-    setSaving(true)
+
+
+  const handleImageFile = async (file: File) => {
+
+    if (!can || !form) return
+
     try {
-      const updated = await update(can.id, updates)
+
+      const previousUrl = can.image_url
+
+      const url = await imageUpload.processFile(file)
+
+      const imageFields = getSaveImageFields({
+        ...form,
+        user_image_url: url,
+        image_source: 'user',
+      })
+      const updated = await update(can.id, imageFields)
+
       setCan(updated)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed')
-    } finally {
-      setSaving(false)
+
+      setForm(canToFormData(updated))
+
+      if (previousUrl && previousUrl !== url && previousUrl.includes('/can-images/')) {
+
+        await deleteCanImage(previousUrl).catch(() => undefined)
+
+      }
+
+    } catch {
+
+      // uploadError shown in component
+
     }
+
   }
+
+
+
+  const handleImageRemove = async () => {
+
+    if (!can || !form) return
+
+    imageUpload.clearUploadState()
+
+    const previousUrl = can.image_url
+
+    const nextForm = applyAutoImageToForm({ ...form, user_image_url: '' })
+    setForm(nextForm)
+
+    try {
+
+      const updated = await update(can.id, getSaveImageFields(nextForm))
+
+      setCan(updated)
+
+      setForm(canToFormData(updated))
+
+      if (previousUrl?.includes('/can-images/')) {
+
+        await deleteCanImage(previousUrl).catch(() => undefined)
+
+      }
+
+    } catch (err) {
+
+      setError(err instanceof Error ? err.message : 'Failed to remove image')
+
+      setForm({ ...form, user_image_url: previousUrl ?? '', image_source: 'user' })
+
+    }
+
+  }
+
+
+
+  const handleSave = async () => {
+
+    if (!can || !form) return
+
+    setSaving(true)
+
+    setError(null)
+
+    setMessage(null)
+
+    const wasForTrade = can.available_for_trade
+
+    try {
+
+      let userImageUrl = form.user_image_url.trim()
+
+      if (!useGuestStorage() && imageUpload.pendingBlob) {
+
+        const cloudUrl = await imageUpload.uploadPendingForCan(can.id, form.user_image_url)
+
+        if (cloudUrl) userImageUrl = cloudUrl
+
+      }
+
+
+
+      const insert = formDataToInsert({ ...form, user_image_url: userImageUrl })
+
+      const updated = await update(can.id, insert)
+
+      setCan(updated)
+
+      setForm(canToFormData(updated))
+
+
+
+      if (!wasForTrade && updated.available_for_trade) {
+
+        triggerRegisterCTA('trade_listing')
+
+      }
+
+      setMessage('Changes saved')
+
+      setTimeout(() => setMessage(null), 2000)
+
+    } catch (err) {
+
+      setError(err instanceof Error ? err.message : 'Save failed')
+
+    } finally {
+
+      setSaving(false)
+
+    }
+
+  }
+
+
 
   const handleDelete = async () => {
+
     if (!can || !confirm('Delete this can from your collection?')) return
+
     setDeleting(true)
+
     try {
+
+      if (can.image_url?.includes('/can-images/')) {
+
+        await deleteCanImage(can.image_url).catch(() => undefined)
+
+      }
+
       await remove(can.id)
-      navigate('/collection')
+
+      navigate(can.is_wishlist ? '/wishlist' : '/collection')
+
     } catch (err) {
+
       setError(err instanceof Error ? err.message : 'Delete failed')
+
       setDeleting(false)
+
     }
+
   }
+
+
 
   if (loading) {
+
     return (
+
       <Layout title="Can Details" hideNav>
+
         <LoadingSpinner fullPage label="Loading can..." />
+
       </Layout>
+
     )
+
   }
 
-  if (error || !can) {
+
+
+  if (error && !can) {
+
     return (
+
       <Layout title="Can Details" hideNav>
-        <EmptyState title="Can not found" description={error ?? undefined} />
+
+        <EmptyState title="Can not found" description={error} />
+
         <Link to="/collection" className="mt-4 block text-center text-sm text-monster-green">
+
           Back to collection
+
         </Link>
+
       </Layout>
+
     )
+
   }
+
+
+
+  if (!can || !form) return null
+
+
 
   return (
-    <Layout title="Can Details" hideNav>
+
+    <Layout title="Edit Can" hideNav>
+
       <Link
+
         to={can.is_wishlist ? '/wishlist' : '/collection'}
+
         className="mb-4 inline-flex items-center gap-1 text-sm text-monster-muted hover:text-white"
+
       >
+
         <ArrowLeft size={16} /> Back
+
       </Link>
 
+
+
       <div className="flex flex-col gap-4">
-        <Card className="overflow-hidden p-0">
-          <div className="aspect-square bg-monster-dark">
-            {can.image_url ? (
-              <img
-                src={can.image_url}
-                alt={can.name ?? 'Can'}
-                className="h-full w-full object-contain p-4"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <span className="text-6xl font-black text-monster-green/20">M</span>
-              </div>
-            )}
-          </div>
-        </Card>
 
-        <div>
-          <h1 className="text-xl font-bold text-white">{can.name ?? 'Unknown Can'}</h1>
-          {can.flavor ? <p className="text-sm text-monster-muted">{can.flavor}</p> : null}
-        </div>
+        <Card className="p-4">
 
-        <Card>
-          <MetaRow label="Brand" value={can.brand} />
-          <MetaRow label="Barcode" value={can.barcode} />
-          <MetaRow label="Volume" value={can.volume} />
-          <MetaRow label="Country" value={can.country} />
-          <MetaRow label="Country Variant" value={can.country_variant} />
-          {can.is_wishlist ? (
-            <MetaRow label="Wishlist" value={can.wishlist_status ?? 'wanted'} />
-          ) : null}
-          <MetaRow label="Rarity" value={can.rarity} />
-          <MetaRow label="Quantity" value={String(can.quantity)} />
-          <MetaRow label="Added" value={new Date(can.added_date).toLocaleDateString()} />
-        </Card>
+          <CanFormFields
 
-        <Card className="flex flex-col gap-3">
-          {can.is_wishlist ? (
-            <div className="flex gap-2">
-              {(['wanted', 'missing'] as const).map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => saveField({ wishlist_status: status })}
-                  className={`flex-1 rounded-lg border px-2 py-2 text-sm capitalize ${
-                    can.wishlist_status === status
-                      ? 'border-monster-green bg-monster-green/20 text-monster-green'
-                      : 'border-monster-border text-monster-muted'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-          ) : null}
+            data={form}
 
-          {!can.is_wishlist ? (
-            <>
-              <label className="flex items-center justify-between">
-                <span className="text-sm">Opened</span>
-                <input
-                  type="checkbox"
-                  checked={can.opened}
-                  disabled={saving}
-                  onChange={(e) => saveField({ opened: e.target.checked })}
-                  className="h-5 w-5 accent-monster-green"
-                />
-              </label>
+            onChange={setForm}
 
-              <label className="flex items-center justify-between">
-                <span className="text-sm">Available for trade</span>
-                <input
-                  type="checkbox"
-                  checked={can.available_for_trade}
-                  disabled={saving}
-                  onChange={(e) => saveField({ available_for_trade: e.target.checked })}
-                  className="h-5 w-5 accent-monster-green"
-                />
-              </label>
+            onImageFileSelect={handleImageFile}
 
-              <Input
-                label="Purchase Date"
-                type="date"
-                value={purchaseDate}
-                onChange={(e) => setPurchaseDate(e.target.value)}
-                onBlur={() => {
-                  if (purchaseDate !== (can.purchase_date ?? '')) {
-                    saveField({ purchase_date: purchaseDate || null })
-                  }
-                }}
-              />
-            </>
-          ) : null}
+            onImageRemove={handleImageRemove}
 
-          <Input
-            label="Notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={() => {
-              if (notes !== (can.notes ?? '')) {
-                saveField({ notes: notes || null })
-              }
-            }}
+            imageUploading={imageUpload.uploading || saving}
+
+            imageUploadError={imageUpload.uploadError}
+
+            imageSizeWarning={imageUpload.sizeWarning}
+
+            showWishlistFields={can.is_wishlist}
+
+            showImageSource
+
           />
+
         </Card>
+
+
+
+        {!form.is_wishlist && form.available_for_trade ? (
+          can.available_for_trade ? (
+            <TradeListingEditor can={can} premiumFeatures={premiumFeatures} />
+          ) : (
+            <Card className="border-monster-green/30 bg-monster-green/5 p-4">
+              <p className="text-sm text-white">Trade listing ready</p>
+              <p className="mt-1 text-xs text-monster-muted">
+                Save changes above to create your trade listing with condition, photos, and
+                description.
+              </p>
+            </Card>
+          )
+        ) : null}
+
+
+
+        {message ? <p className="text-sm text-monster-green">{message}</p> : null}
 
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-        <Button variant="danger" fullWidth loading={deleting} onClick={handleDelete}>
-          <Trash2 size={18} />
-          Delete Can
+
+
+        <Button fullWidth loading={saving} onClick={() => void handleSave()}>
+
+          <Save size={18} />
+
+          Save changes
+
         </Button>
+
+
+
+        <Button variant="danger" fullWidth loading={deleting} onClick={handleDelete}>
+
+          <Trash2 size={18} />
+
+          Delete Can
+
+        </Button>
+
       </div>
+
     </Layout>
+
   )
+
 }
+
+

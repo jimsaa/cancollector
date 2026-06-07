@@ -1,42 +1,57 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Camera, CameraOff, Keyboard } from 'lucide-react'
 import { Layout } from '../components/layout/Layout'
-import { BarcodeScanner } from '../components/scanner/BarcodeScanner'
-import { ScanConfirmScreen, type LookupStatus } from '../components/scanner/ScanConfirmScreen'
 import { DuplicateCanScreen } from '../components/cans/DuplicateCanScreen'
-import { CanFormFields, emptyFormData, formDataToInsert, type CanFormData } from '../components/cans/CanForm'
-import { Input } from '../components/ui/Input'
-import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
-import { LoadingSpinner } from '../components/ui/LoadingSpinner'
+import {
+  applyAutoImageToForm,
+  emptyFormData,
+  formDataToInsert,
+  type CanFormData,
+} from '../components/cans/CanForm'
+import {
+  AddCanWizardProgress,
+  type AddCanWizardStep,
+} from '../components/addCan/AddCanWizardProgress'
+import { AddCanStepScan } from '../components/addCan/AddCanStepScan'
+import { AddCanStepMatch, type OffLookupStatus } from '../components/addCan/AddCanStepMatch'
+import { AddCanStepEdit } from '../components/addCan/AddCanStepEdit'
+import { AddCanStepSummary } from '../components/addCan/AddCanStepSummary'
 import { useAuth } from '../hooks/useAuth'
+import { useGuestMessaging } from '../hooks/useGuestMessaging'
 import { useCans } from '../hooks/useCans'
+import { useCanImageUpload } from '../hooks/useCanImageUpload'
 import { fetchProductByBarcode } from '../lib/openFoodFacts'
-import { uploadCanImage } from '../lib/storage'
 import { findDuplicateCan } from '../lib/duplicates'
-import type { CameraErrorInfo } from '../lib/cameraErrors'
+import { fetchActiveMasterCans } from '../lib/masterCans'
+import { attachMasterCanLink, findMasterByBarcode } from '../lib/masterCanMatching'
+import { getSaveImageFields } from '../lib/canImage'
+import { inferSuggestionSource, maybeCreatePendingSuggestion } from '../lib/pendingSuggestions'
+import { useGuestStorage } from '../lib/guestStorage'
 import { isCameraSupported, isSecureContext } from '../lib/cameraErrors'
+import type { CameraErrorInfo } from '../lib/cameraErrors'
 import type { Can } from '../types/can'
+import type { MasterCan } from '../types/masterCan'
 
-type AddStep = 'scan' | 'confirm' | 'edit' | 'duplicate'
+type PageStep = AddCanWizardStep | 'duplicate'
 
 export function AddCanPage() {
-  const { user } = useAuth()
-  const { cans, add, update } = useCans(user?.id)
+  const { storageUserId } = useAuth()
+  const { triggerRegisterCTA } = useGuestMessaging()
+  const { cans, add, update } = useCans(storageUserId)
   const navigate = useNavigate()
+  const imageUpload = useCanImageUpload(storageUserId)
 
-  const [step, setStep] = useState<AddStep>('scan')
+  const [step, setStep] = useState<PageStep>('scan')
   const [scanning, setScanning] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [form, setForm] = useState<CanFormData>(emptyFormData())
+  const [matchedMaster, setMatchedMaster] = useState<MasterCan | null>(null)
   const [duplicate, setDuplicate] = useState<Can | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
-  const [lookupStatus, setLookupStatus] = useState<LookupStatus>('not_found')
+  const [offStatus, setOffStatus] = useState<OffLookupStatus>('not_found')
   const [cameraError, setCameraError] = useState<CameraErrorInfo | null>(null)
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
 
   const cameraAvailable = isSecureContext() && isCameraSupported()
   const collectionCans = cans.filter((c) => !c.is_wishlist)
@@ -48,10 +63,12 @@ export function AddCanPage() {
     setSaveError(null)
     setCameraError(null)
     setForm(emptyFormData())
+    setMatchedMaster(null)
     setDuplicate(null)
     setManualBarcode('')
-    setLookupStatus('not_found')
-  }, [])
+    setOffStatus('not_found')
+    imageUpload.clearUploadState()
+  }, [imageUpload])
 
   const checkDuplicate = useCallback(
     (barcode: string, country: string, countryVariant: string) => {
@@ -72,44 +89,65 @@ export function AddCanPage() {
       setSaveError(null)
       setScanning(false)
       setDuplicate(null)
+      imageUpload.clearUploadState()
 
       try {
-        const product = await fetchProductByBarcode(barcode)
+        let product = null
+        let offLookup: OffLookupStatus = 'not_found'
+
+        try {
+          product = await fetchProductByBarcode(barcode)
+          offLookup = product ? 'found' : 'not_found'
+        } catch {
+          offLookup = 'error'
+        }
+
+        const masters = await fetchActiveMasterCans('all')
+        const master = findMasterByBarcode(masters, barcode)
+
         const nextForm: CanFormData = {
           ...emptyFormData(),
           barcode,
-          name: product?.name ?? '',
-          brand: product?.brand ?? 'Monster',
-          flavor: product?.flavor ?? '',
-          volume: product?.volume ?? '',
-          country: product?.country ?? '',
-          image_url: product?.image_url ?? '',
+          name: product?.name ?? master?.product_name ?? '',
+          brand: product?.brand ?? master?.brand ?? 'Monster',
+          flavor: product?.flavor ?? master?.flavor ?? '',
+          volume: product?.volume ?? master?.volume ?? '',
+          country: product?.country ?? master?.country ?? '',
+          off_image_url: product?.image_url ?? '',
+          master_image_url: master?.image_url ?? '',
+          rarity: master?.rarity ?? 'unknown',
         }
-        setForm(nextForm)
-        setLookupStatus(product ? 'found' : 'not_found')
+
+        setMatchedMaster(master)
+        setForm(applyAutoImageToForm(nextForm))
+        setOffStatus(offLookup)
 
         if (checkDuplicate(barcode, nextForm.country, nextForm.country_variant)) {
           return
         }
-        setStep('confirm')
+
+        setStep('match')
       } catch {
         const nextForm = { ...emptyFormData(), barcode }
         setForm(nextForm)
-        setLookupStatus('error')
+        setMatchedMaster(null)
+        setOffStatus('error')
+
         if (checkDuplicate(barcode, '', '')) return
-        setStep('confirm')
+
+        setStep('match')
       } finally {
         setLookupLoading(false)
       }
     },
-    [checkDuplicate],
+    [checkDuplicate, imageUpload],
   )
 
   const handleScan = useCallback(
     (barcode: string) => {
       setManualBarcode(barcode)
       setScanning(false)
-      applyProduct(barcode)
+      void applyProduct(barcode)
     },
     [applyProduct],
   )
@@ -118,7 +156,21 @@ export function AddCanPage() {
     const code = manualBarcode.trim()
     if (!code) return
     setScanning(false)
-    applyProduct(code)
+    void applyProduct(code)
+  }
+
+  const handleImageFile = async (file: File) => {
+    try {
+      const url = await imageUpload.processFile(file)
+      setForm((prev) => ({ ...prev, user_image_url: url, image_source: 'user' as const }))
+    } catch {
+      // error shown via imageUpload.uploadError
+    }
+  }
+
+  const handleImageRemove = () => {
+    imageUpload.clearUploadState()
+    setForm((prev) => applyAutoImageToForm({ ...prev, user_image_url: '' }))
   }
 
   const handleSave = async () => {
@@ -126,8 +178,69 @@ export function AddCanPage() {
 
     setSaveLoading(true)
     setSaveError(null)
+    imageUpload.setUploadError(null)
+
     try {
-      const created = await add(formDataToInsert(form))
+      const masters = await fetchActiveMasterCans('all')
+      const insert = attachMasterCanLink(formDataToInsert(form), masters)
+      const created = await add(insert)
+
+      if (!insert.is_wishlist) {
+        const collectionCount = cans.filter((c) => !c.is_wishlist).length + 1
+        if (collectionCount === 1) triggerRegisterCTA('first_can')
+        if (collectionCount === 3) triggerRegisterCTA('three_cans')
+      }
+
+      const hasPendingUpload =
+        !useGuestStorage() &&
+        (imageUpload.pendingBlob || form.user_image_url.startsWith('data:'))
+
+      if (hasPendingUpload) {
+        try {
+          const cloudUrl = await imageUpload.uploadPendingForCan(created.id, form.user_image_url)
+          if (cloudUrl) {
+            await update(
+              created.id,
+              getSaveImageFields({
+                ...form,
+                user_image_url: cloudUrl,
+                image_source: 'user',
+              }),
+            )
+          }
+        } catch (err) {
+          setSaveError(
+            `Can saved, but image upload failed: ${err instanceof Error ? err.message : 'Unknown error'}. You can retry from the can detail page.`,
+          )
+          navigate(`/can/${created.id}`)
+          return
+        }
+      } else if (
+        !useGuestStorage() &&
+        form.user_image_url &&
+        !form.user_image_url.startsWith('data:') &&
+        form.image_source === 'user'
+      ) {
+        await update(created.id, getSaveImageFields(form))
+      }
+
+      if (!insert.master_can_id && insert.barcode) {
+        const imageUrl =
+          form.image_source === 'user'
+            ? form.user_image_url
+            : form.master_image_url || form.off_image_url || null
+        await maybeCreatePendingSuggestion({
+          barcode: insert.barcode,
+          product_name: insert.name,
+          image_url: imageUrl,
+          source: inferSuggestionSource({
+            offFound: offStatus === 'found',
+            hasUserImage: form.image_source === 'user' && Boolean(form.user_image_url),
+          }),
+          submitted_by: storageUserId,
+        }).catch(() => undefined)
+      }
+
       navigate(`/can/${created.id}`)
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to save can')
@@ -155,66 +268,67 @@ export function AddCanPage() {
     setStep('edit')
   }
 
+  const wizardStep: AddCanWizardStep | null =
+    step === 'duplicate' ? null : (step as AddCanWizardStep)
+
   return (
     <Layout title="Add Can">
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4">
+        {wizardStep ? <AddCanWizardProgress current={wizardStep} /> : null}
+
         {step === 'scan' ? (
-          <>
-            <section className="flex flex-col gap-3">
-              <BarcodeScanner
-                active={scanning}
-                onScan={handleScan}
-                onError={setCameraError}
-                onScanningChange={setScanning}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  onClick={() => { setCameraError(null); setScanning(true) }}
-                  disabled={scanning || lookupLoading || !cameraAvailable}
-                  className="py-3.5"
-                >
-                  <Camera size={20} />
-                  Start Scan
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => setScanning(false)} disabled={!scanning} className="py-3.5">
-                  <CameraOff size={20} />
-                  Stop Scan
-                </Button>
-              </div>
-              {!cameraAvailable ? (
-                <Card className="border-yellow-600/40 bg-yellow-900/20">
-                  <p className="text-sm font-semibold text-yellow-300">Camera unavailable</p>
-                  <p className="mt-1 text-xs text-monster-muted">Use manual barcode entry below.</p>
-                </Card>
-              ) : null}
-              {cameraError ? (
-                <Card className="border-red-800/50 bg-red-950/30">
-                  <p className="text-sm font-semibold text-red-300">{cameraError.title}</p>
-                  <p className="mt-1 text-xs text-monster-muted">{cameraError.message}</p>
-                </Card>
-              ) : null}
-            </section>
-            <Card>
-              <div className="mb-3 flex items-center gap-2">
-                <Keyboard size={16} className="text-monster-green" />
-                <p className="text-xs font-medium uppercase tracking-wide text-monster-muted">Manual Barcode Entry</p>
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="e.g. 5053947891234"
-                  value={manualBarcode}
-                  onChange={(e) => setManualBarcode(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleManualLookup()}
-                  inputMode="numeric"
-                />
-                <Button type="button" variant="secondary" onClick={handleManualLookup} loading={lookupLoading} disabled={!manualBarcode.trim()} className="shrink-0" aria-label="Look up barcode">
-                  <Search size={18} />
-                </Button>
-              </div>
-            </Card>
-            {lookupLoading ? <LoadingSpinner label="Fetching product from Open Food Facts..." /> : null}
-          </>
+          <AddCanStepScan
+            scanning={scanning}
+            lookupLoading={lookupLoading}
+            manualBarcode={manualBarcode}
+            cameraAvailable={cameraAvailable}
+            cameraError={cameraError}
+            onManualBarcodeChange={setManualBarcode}
+            onStartScan={() => {
+              setCameraError(null)
+              setScanning(true)
+            }}
+            onStopScan={() => setScanning(false)}
+            onManualLookup={handleManualLookup}
+            onScan={handleScan}
+            onCameraError={setCameraError}
+            onScanningChange={setScanning}
+          />
+        ) : null}
+
+        {step === 'match' ? (
+          <AddCanStepMatch
+            data={form}
+            offStatus={offStatus}
+            matchedMaster={matchedMaster}
+            onBack={resetToScan}
+            onContinue={() => setStep('edit')}
+            onEdit={() => setStep('edit')}
+          />
+        ) : null}
+
+        {step === 'edit' ? (
+          <AddCanStepEdit
+            data={form}
+            onChange={setForm}
+            onBack={() => setStep('match')}
+            onContinue={() => setStep('summary')}
+            onImageFileSelect={handleImageFile}
+            onImageRemove={handleImageRemove}
+            imageUploading={imageUpload.uploading}
+            imageUploadError={imageUpload.uploadError}
+            imageSizeWarning={imageUpload.sizeWarning}
+          />
+        ) : null}
+
+        {step === 'summary' ? (
+          <AddCanStepSummary
+            data={form}
+            saving={saveLoading}
+            saveError={saveError}
+            onBack={() => setStep('edit')}
+            onSave={() => void handleSave()}
+          />
         ) : null}
 
         {step === 'duplicate' && duplicate ? (
@@ -222,46 +336,10 @@ export function AddCanPage() {
             existing={duplicate}
             increasing={saveLoading}
             error={saveError}
-            onIncreaseQuantity={handleIncreaseQuantity}
+            onIncreaseQuantity={() => void handleIncreaseQuantity()}
             onAddAsNewVariant={handleAddAsNewVariant}
             onScanAgain={resetToScan}
           />
-        ) : null}
-
-        {step === 'confirm' ? (
-          <ScanConfirmScreen
-            data={form}
-            lookupStatus={lookupStatus}
-            saving={saveLoading}
-            saveError={saveError}
-            onEdit={() => setStep('edit')}
-            onSave={handleSave}
-            onScanAgain={resetToScan}
-          />
-        ) : null}
-
-        {step === 'edit' ? (
-          <>
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Edit can details</p>
-              <button type="button" onClick={() => setStep(duplicate ? 'duplicate' : 'confirm')} className="text-xs text-monster-green hover:underline">
-                Back to review
-              </button>
-            </div>
-            <CanFormFields data={form} onChange={setForm} onImageUpload={async (file) => {
-              if (!user) return
-              setUploading(true)
-              try {
-                const url = await uploadCanImage(user.id, file)
-                setForm((prev) => ({ ...prev, image_url: url }))
-              } finally {
-                setUploading(false)
-              }
-            }} uploading={uploading} />
-            {saveError ? <p className="text-sm text-red-400">{saveError}</p> : null}
-            <Button fullWidth loading={saveLoading} onClick={handleSave} className="py-4">Confirm & Save to Collection</Button>
-            <Button variant="ghost" fullWidth onClick={resetToScan}>Scan Another Can</Button>
-          </>
         ) : null}
       </div>
     </Layout>

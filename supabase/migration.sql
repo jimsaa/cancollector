@@ -243,5 +243,6 @@ create policy "Users can delete own can images"
   );
 
 -- ------------------------------------------------------------
--- Done. Verify in Table Editor: profiles, cans (RLS on), Storage: can-images
+-- Done. Also run migration-master-cans.sql for the global can database.
+-- Verify: profiles, cans, master_cans (RLS on), Storage: can-images
 -- ============================================================

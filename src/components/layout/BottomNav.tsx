@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Grid3x3, PlusCircle, ArrowLeftRight, User, Heart } from 'lucide-react'
+import { Home, Grid3x3, PlusCircle, ArrowLeftRight, User, Heart, ListMinus } from 'lucide-react'
 
 const links = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/collection', icon: Grid3x3, label: 'Cans' },
   { to: '/add', icon: PlusCircle, label: 'Add', accent: true },
+  { to: '/missing', icon: ListMinus, label: 'Missing' },
   { to: '/wishlist', icon: Heart, label: 'Want' },
   { to: '/trade', icon: ArrowLeftRight, label: 'Trade' },
   { to: '/profile', icon: User, label: 'Profile' },

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Can, CanInsert, CanUpdate } from '../types/can'
 import { createCan, deleteCan, fetchCans, importCans, updateCan } from '../lib/cans'
 
-export function useCans(userId: string | undefined) {
+export function useCans(userId: string | undefined, maxActiveListings = 999) {
   const [cans, setCans] = useState<Can[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,18 +33,18 @@ export function useCans(userId: string | undefined) {
   const add = useCallback(
     async (can: CanInsert) => {
       if (!userId) throw new Error('Not authenticated')
-      const created = await createCan(userId, can)
+      const created = await createCan(userId, can, { maxActiveListings })
       setCans((prev) => [created, ...prev])
       return created
     },
-    [userId],
+    [userId, maxActiveListings],
   )
 
   const update = useCallback(async (id: string, updates: CanUpdate) => {
-    const updated = await updateCan(id, updates)
+    const updated = await updateCan(id, updates, { maxActiveListings })
     setCans((prev) => prev.map((c) => (c.id === id ? updated : c)))
     return updated
-  }, [])
+  }, [maxActiveListings])
 
   const remove = useCallback(async (id: string) => {
     await deleteCan(id)

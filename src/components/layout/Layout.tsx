@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Logo } from '../brand/Logo'
 import { BottomNav } from './BottomNav'
-import { LocalModeBanner } from './LocalModeBanner'
+import { GuestModeBanner } from './GuestModeBanner'
+import { useGuestMessaging } from '../../hooks/useGuestMessaging'
 import { useAuth } from '../../hooks/useAuth'
 
 interface LayoutProps {
@@ -12,7 +13,8 @@ interface LayoutProps {
 }
 
 export function Layout({ children, title, hideNav }: LayoutProps) {
-  const { isLocalMode, isCloudMode, displayLabel } = useAuth()
+  const { displayLabel } = useAuth()
+  const { isGuest, isCloudSynced } = useGuestMessaging()
 
   return (
     <div className="min-h-dvh bg-monster-black">
@@ -26,7 +28,7 @@ export function Layout({ children, title, hideNav }: LayoutProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isCloudMode && displayLabel ? (
+            {isCloudSynced && displayLabel ? (
               <Link
                 to="/profile"
                 className="max-w-[120px] truncate text-xs font-medium text-monster-muted hover:text-white"
@@ -35,20 +37,20 @@ export function Layout({ children, title, hideNav }: LayoutProps) {
                 {displayLabel}
               </Link>
             ) : null}
-            {isLocalMode ? (
+            {isGuest ? (
               <span className="rounded-full border border-yellow-600/50 bg-yellow-900/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-yellow-400">
-                LOCAL MODE
+                GUEST MODE
               </span>
-            ) : (
+            ) : isCloudSynced ? (
               <span className="rounded-full border border-monster-green/40 bg-monster-green/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-monster-green">
-                CLOUD MODE
+                CLOUD SYNCED
               </span>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
 
-      {isLocalMode ? <LocalModeBanner /> : null}
+      {isGuest ? <GuestModeBanner /> : null}
 
       <main className={`mx-auto max-w-lg px-4 ${hideNav ? 'pb-8' : 'pb-24'} pt-4`}>{children}</main>
 

@@ -1,5 +1,7 @@
 import type { Can, CanInsert, CanUpdate } from '../types/can'
-import { isLocalMode } from './mode'
+import { useGuestStorage } from './guestStorage'
+import { normalizeCanRecord, normalizeCanTradeFields } from './tradeFields'
+import { removeTradeRecordsForCan, syncTradeFromCan } from './tradeSync'
 import {
   createLocalCan,
   deleteLocalCan,
@@ -18,7 +20,7 @@ function requireClient() {
 }
 
 export async function fetchCans(userId: string): Promise<Can[]> {
-  if (isLocalMode) return fetchLocalCans(userId)
+  if (useGuestStorage()) return fetchLocalCans(userId)
 
   const client = requireClient()
   const { data, error } = await client
@@ -28,45 +30,79 @@ export async function fetchCans(userId: string): Promise<Can[]> {
     .order('added_date', { ascending: false })
 
   if (error) throw error
-  return (data ?? []) as Can[]
+  return ((data ?? []) as Can[]).map(normalizeCanRecord)
 }
 
 export async function fetchCanById(id: string): Promise<Can | null> {
-  if (isLocalMode) return fetchLocalCanById(id)
+  if (useGuestStorage()) return fetchLocalCanById(id)
 
   const client = requireClient()
   const { data, error } = await client.from('cans').select('*').eq('id', id).maybeSingle()
 
   if (error) throw error
-  return data as Can | null
+  return data ? normalizeCanRecord(data as Can) : null
 }
 
-export async function createCan(userId: string, can: CanInsert): Promise<Can> {
-  if (isLocalMode) return createLocalCan(userId, can)
+export async function createCan(
+  userId: string,
+  can: CanInsert,
+  options?: { maxActiveListings?: number },
+): Promise<Can> {
+  const normalized = normalizeCanTradeFields(can)
+
+  if (useGuestStorage()) {
+    const created = normalizeCanRecord(await createLocalCan(userId, normalized))
+    await syncTradeFromCan(created, options?.maxActiveListings ?? 999)
+    return created
+  }
 
   const client = requireClient()
   const { data, error } = await client
     .from('cans')
-    .insert({ ...can, user_id: userId })
+    .insert({ ...normalized, user_id: userId })
     .select()
     .single()
 
   if (error) throw error
-  return data as Can
+  const created = normalizeCanRecord(data as Can)
+  await syncTradeFromCan(created, options?.maxActiveListings ?? 999)
+  return created
 }
 
-export async function updateCan(id: string, updates: CanUpdate): Promise<Can> {
-  if (isLocalMode) return updateLocalCan(id, updates)
+export async function updateCan(
+  id: string,
+  updates: CanUpdate,
+  options?: { maxActiveListings?: number },
+): Promise<Can> {
+  const normalized = normalizeCanTradeFields(updates)
+
+  if (useGuestStorage()) {
+    const updated = normalizeCanRecord(await updateLocalCan(id, normalized))
+    await syncTradeFromCan(updated, options?.maxActiveListings ?? 999)
+    return updated
+  }
 
   const client = requireClient()
-  const { data, error } = await client.from('cans').update(updates).eq('id', id).select().single()
+  const { data, error } = await client
+    .from('cans')
+    .update(normalized)
+    .eq('id', id)
+    .select()
+    .single()
 
   if (error) throw error
-  return data as Can
+  const updated = normalizeCanRecord(data as Can)
+  await syncTradeFromCan(updated, options?.maxActiveListings ?? 999)
+  return updated
 }
 
 export async function deleteCan(id: string): Promise<void> {
-  if (isLocalMode) return deleteLocalCan(id)
+  if (useGuestStorage()) {
+    await removeTradeRecordsForCan(id)
+    return deleteLocalCan(id)
+  }
+
+  await removeTradeRecordsForCan(id)
 
   const client = requireClient()
   const { error } = await client.from('cans').delete().eq('id', id)
@@ -74,7 +110,7 @@ export async function deleteCan(id: string): Promise<void> {
 }
 
 export async function fetchTradeCans(userId: string): Promise<Can[]> {
-  if (isLocalMode) {
+  if (useGuestStorage()) {
     const cans = await fetchLocalCans(userId)
     return cans
       .filter((c) => c.available_for_trade)
@@ -111,7 +147,7 @@ export function computeStats(cans: Can[]): CollectionStats {
 }
 
 export async function importCans(userId: string, cans: Can[], mode: 'merge' | 'replace'): Promise<void> {
-  if (isLocalMode) {
+  if (useGuestStorage()) {
     if (mode === 'replace') {
       await replaceLocalCans(userId, cans)
       return

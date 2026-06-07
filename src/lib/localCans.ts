@@ -1,4 +1,5 @@
 import type { Can, CanInsert, CanUpdate } from '../types/can'
+import { normalizeCanImageFields } from './canImage'
 import { generateId } from './id'
 
 const CANS_KEY = 'cancollector-cans'
@@ -32,12 +33,19 @@ function readAll(): Can[] {
 }
 
 function migrateCan(c: Can): Can {
-  return {
+  return normalizeCanImageFields({
     ...c,
+    master_can_id: c.master_can_id ?? null,
     country_variant: c.country_variant ?? null,
+    available_for_trade: c.available_for_trade ?? false,
+    wanted: c.wanted ?? (c.is_wishlist ? c.wishlist_status !== 'missing' : false),
     is_wishlist: c.is_wishlist ?? false,
     wishlist_status: c.wishlist_status ?? null,
-  }
+    image_source: c.image_source ?? 'placeholder',
+    user_image_url: c.user_image_url ?? null,
+    master_image_url: c.master_image_url ?? null,
+    off_image_url: c.off_image_url ?? null,
+  })
 }
 
 function writeAll(cans: Can[]): void {
@@ -52,6 +60,7 @@ function toCan(userId: string, input: CanInsert): Can {
   return {
     id: generateId(),
     user_id: userId,
+    master_can_id: input.master_can_id ?? null,
     barcode: input.barcode ?? null,
     name: input.name ?? null,
     brand: input.brand ?? null,
@@ -60,10 +69,15 @@ function toCan(userId: string, input: CanInsert): Can {
     country: input.country ?? null,
     country_variant: input.country_variant ?? null,
     image_url: input.image_url ?? null,
+    image_source: input.image_source ?? 'placeholder',
+    user_image_url: input.user_image_url ?? null,
+    master_image_url: input.master_image_url ?? null,
+    off_image_url: input.off_image_url ?? null,
     opened: input.opened ?? false,
     purchase_date: input.purchase_date ?? null,
     added_date: new Date().toISOString(),
     available_for_trade: input.available_for_trade ?? false,
+    wanted: input.wanted ?? false,
     notes: input.notes ?? null,
     rarity: input.rarity ?? 'unknown',
     quantity: input.quantity ?? 1,

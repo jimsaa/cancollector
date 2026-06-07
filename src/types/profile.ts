@@ -1,5 +1,7 @@
 export type PremiumStatus = 'free' | 'premium'
 
+export type UserRole = 'user' | 'admin'
+
 export interface Profile {
   id: string
   display_name: string | null
@@ -7,6 +9,7 @@ export interface Profile {
   created_at: string
   premium_status: PremiumStatus
   premium_until: string | null
+  role: UserRole
 }
 
 export interface ProfileUpdate {

@@ -1,4 +1,15 @@
 import type { ProductLookup } from '../types/can'
+import {
+  isExcludedOffImageUrl,
+  isLikelyFrontCanImageUrl,
+  isRawOffBarcodeImageUrl,
+} from './imagePortrait'
+
+interface OffSelectedImageBucket {
+  display?: Record<string, string>
+  small?: Record<string, string>
+  thumb?: Record<string, string>
+}
 
 interface OpenFoodFactsProduct {
   code?: string
@@ -11,6 +22,9 @@ interface OpenFoodFactsProduct {
   image_url?: string
   image_front_url?: string
   image_front_small_url?: string
+  selected_images?: {
+    front?: OffSelectedImageBucket
+  }
 }
 
 interface OpenFoodFactsResponse {
@@ -18,13 +32,36 @@ interface OpenFoodFactsResponse {
   product?: OpenFoodFactsProduct
 }
 
-function pickImage(product: OpenFoodFactsProduct): string | null {
-  return (
-    product.image_front_url ??
-    product.image_url ??
-    product.image_front_small_url ??
-    null
+function firstUrl(bucket: OffSelectedImageBucket | undefined): string | null {
+  if (!bucket) return null
+  for (const size of ['display', 'small', 'thumb'] as const) {
+    const urls = Object.values(bucket[size] ?? {}).filter(Boolean)
+    if (urls.length > 0) return urls[0]
+  }
+  return null
+}
+
+/** Prefer OFF front product image only — never ingredients, nutrition, packaging, or barcode. */
+export function pickFrontImageCandidate(product: OpenFoodFactsProduct): string | null {
+  const selectedFront = firstUrl(product.selected_images?.front)
+  if (selectedFront && !isExcludedOffImageUrl(selectedFront) && !isRawOffBarcodeImageUrl(selectedFront)) {
+    return selectedFront
+  }
+
+  const legacyFront = [product.image_front_url, product.image_front_small_url].find(
+    (url) => url && !isExcludedOffImageUrl(url) && !isRawOffBarcodeImageUrl(url),
   )
+  if (legacyFront) return legacyFront
+
+  // Do not fall back to generic image_url — it may be ingredients, nutrition, or packaging.
+  return null
+}
+
+async function pickValidatedFrontImage(product: OpenFoodFactsProduct): Promise<string | null> {
+  const candidate = pickFrontImageCandidate(product)
+  if (!candidate) return null
+  const acceptable = await isLikelyFrontCanImageUrl(candidate)
+  return acceptable ? candidate : null
 }
 
 function pickCountry(product: OpenFoodFactsProduct): string | null {
@@ -37,7 +74,7 @@ function pickCountry(product: OpenFoodFactsProduct): string | null {
   return null
 }
 
-function mapProduct(barcode: string, product: OpenFoodFactsProduct): ProductLookup {
+function mapProduct(barcode: string, product: OpenFoodFactsProduct, imageUrl: string | null): ProductLookup {
   return {
     barcode: product.code ?? barcode,
     name: product.product_name?.trim() || null,
@@ -45,7 +82,7 @@ function mapProduct(barcode: string, product: OpenFoodFactsProduct): ProductLook
     flavor: product.generic_name?.trim() || null,
     volume: product.quantity?.trim() || null,
     country: pickCountry(product),
-    image_url: pickImage(product),
+    image_url: imageUrl,
   }
 }
 
@@ -67,5 +104,6 @@ export async function fetchProductByBarcode(barcode: string): Promise<ProductLoo
     return null
   }
 
-  return mapProduct(trimmed, data.product)
+  const imageUrl = await pickValidatedFrontImage(data.product)
+  return mapProduct(trimmed, data.product, imageUrl)
 }

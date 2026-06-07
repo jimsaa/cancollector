@@ -1,5 +1,6 @@
 import { CheckCircle2, Edit3, RotateCcw, AlertTriangle, Package } from 'lucide-react'
 import type { CanFormData } from '../cans/CanForm'
+import { getDisplayImageUrl } from '../../lib/canImage'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 
@@ -41,6 +42,7 @@ export function ScanConfirmScreen({
   onScanAgain,
 }: ScanConfirmScreenProps) {
   const status = statusCopy[lookupStatus]
+  const previewImage = getDisplayImageUrl(data)
 
   return (
     <div className="flex flex-col gap-4">
@@ -67,9 +69,9 @@ export function ScanConfirmScreen({
       <Card className="overflow-hidden p-0">
         <div className="flex gap-4 p-4">
           <div className="h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-monster-dark">
-            {data.image_url ? (
+            {previewImage ? (
               <img
-                src={data.image_url}
+                src={previewImage}
                 alt={data.name || 'Product'}
                 className="h-full w-full object-contain p-1"
               />

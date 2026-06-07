@@ -45,13 +45,17 @@ Open **SQL Editor** in the Supabase dashboard, click **New query**, paste the sc
 
 Paste and run **[`migration.sql`](./migration.sql)** — the complete, idempotent migration for new projects. It creates:
 
-- `profiles` and `cans` tables (with `updated_at` columns and triggers)
+- `profiles`, `cans`, and `master_cans` tables (with `updated_at` columns and triggers)
 - Indexes for common queries
 - RLS on both tables
 - Auto-create profile trigger on `auth.users` insert
 - `can-images` storage bucket + policies
 
 **Existing projects:** If you already ran an older schema, run [`migration-auth.sql`](./migration-auth.sql) to add profiles and backfill users, or re-run `migration.sql` (safe to re-run).
+
+**Global can database:** After the main migration, run [`migration-master-cans.sql`](./migration-master-cans.sql) to create `master_cans`, link user cans via `master_can_id`, and seed starter data.
+
+**Trade matching:** Run [`migration-trade-matching.sql`](./migration-trade-matching.sql) to add `wanted`, `trade_profiles`, `trade_listings`, `trade_wants`, and `trade_match_candidates` tables.
 
 ```sql
 -- ============================================================

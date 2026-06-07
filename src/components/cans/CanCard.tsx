@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Can } from '../../types/can'
+import { PLACEHOLDER_CAN_IMAGE } from '../../lib/canImage'
 import { Card } from '../ui/Card'
 
 interface CanCardProps {
@@ -21,18 +22,12 @@ export function CanCard({ can, compact }: CanCardProps) {
     <Link to={`/can/${can.id}`} className="block">
       <Card className="overflow-hidden p-0">
         <div className={`relative bg-monster-dark ${compact ? 'aspect-square' : 'aspect-[3/4]'}`}>
-          {can.image_url ? (
-            <img
-              src={can.image_url}
-              alt={can.name ?? 'Can'}
-              className="h-full w-full object-contain p-2"
-              loading="lazy"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <span className="text-4xl font-black text-monster-green/20">M</span>
-            </div>
-          )}
+          <img
+            src={can.image_url ?? PLACEHOLDER_CAN_IMAGE}
+            alt={can.name ?? 'Can'}
+            className="h-full w-full object-contain p-2"
+            loading="lazy"
+          />
           <span className="absolute right-2 top-2 rounded-full bg-monster-green px-2 py-0.5 text-xs font-bold text-black">
             ×{can.quantity}
           </span>

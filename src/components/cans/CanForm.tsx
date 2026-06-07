@@ -1,4 +1,8 @@
-import type { CanInsert, Rarity, WishlistStatus } from '../../types/can'
+import type { Can, CanInsert, Rarity, WishlistStatus } from '../../types/can'
+import type { ImageSource } from '../../types/imageSource'
+import { getSaveImageFields, resolveAutoImage } from '../../lib/canImage'
+import { resolveWanted } from '../../lib/tradeFields'
+import { CanImageUpload } from './CanImageUpload'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 
@@ -10,7 +14,10 @@ export interface CanFormData {
   volume: string
   country: string
   country_variant: string
-  image_url: string
+  user_image_url: string
+  master_image_url: string
+  off_image_url: string
+  image_source: ImageSource
   opened: boolean
   purchase_date: string
   available_for_trade: boolean
@@ -29,7 +36,10 @@ export const emptyFormData = (wishlist = false): CanFormData => ({
   volume: '',
   country: '',
   country_variant: '',
-  image_url: '',
+  user_image_url: '',
+  master_image_url: '',
+  off_image_url: '',
+  image_source: 'placeholder',
   opened: false,
   purchase_date: '',
   available_for_trade: false,
@@ -40,7 +50,38 @@ export const emptyFormData = (wishlist = false): CanFormData => ({
   wishlist_status: 'wanted',
 })
 
+export function canToFormData(can: Can): CanFormData {
+  return {
+    barcode: can.barcode ?? '',
+    name: can.name ?? '',
+    brand: can.brand ?? 'Monster',
+    flavor: can.flavor ?? '',
+    volume: can.volume ?? '',
+    country: can.country ?? '',
+    country_variant: can.country_variant ?? '',
+    user_image_url: can.user_image_url ?? '',
+    master_image_url: can.master_image_url ?? '',
+    off_image_url: can.off_image_url ?? '',
+    image_source: can.image_source,
+    opened: can.opened,
+    purchase_date: can.purchase_date ?? '',
+    available_for_trade: can.available_for_trade,
+    notes: can.notes ?? '',
+    rarity: can.rarity,
+    quantity: can.quantity,
+    is_wishlist: can.is_wishlist,
+    wishlist_status: can.wishlist_status ?? 'wanted',
+  }
+}
+
 export function formDataToInsert(data: CanFormData): CanInsert {
+  const imageFields = getSaveImageFields({
+    image_source: data.image_source,
+    user_image_url: data.user_image_url,
+    master_image_url: data.master_image_url,
+    off_image_url: data.off_image_url,
+  })
+
   return {
     barcode: data.barcode || null,
     name: data.name || null,
@@ -49,7 +90,7 @@ export function formDataToInsert(data: CanFormData): CanInsert {
     volume: data.volume || null,
     country: data.country || null,
     country_variant: data.country_variant || null,
-    image_url: data.image_url || null,
+    ...imageFields,
     opened: data.opened,
     purchase_date: data.purchase_date || null,
     available_for_trade: data.available_for_trade,
@@ -58,57 +99,61 @@ export function formDataToInsert(data: CanFormData): CanInsert {
     quantity: data.quantity,
     is_wishlist: data.is_wishlist,
     wishlist_status: data.is_wishlist ? data.wishlist_status : null,
+    wanted: resolveWanted(data.is_wishlist, data.is_wishlist ? data.wishlist_status : null),
   }
+}
+
+export function applyAutoImageToForm(data: CanFormData): CanFormData {
+  const resolved = resolveAutoImage({
+    user_image_url: data.user_image_url,
+    master_image_url: data.master_image_url,
+    off_image_url: data.off_image_url,
+  })
+  return { ...data, image_source: resolved.image_source }
 }
 
 interface CanFormFieldsProps {
   data: CanFormData
   onChange: (data: CanFormData) => void
-  imagePreview?: string | null
-  onImageUpload?: (file: File) => void
-  uploading?: boolean
+  onImageFileSelect?: (file: File) => void
+  onImageRemove?: () => void
+  imageUploading?: boolean
+  imageUploadError?: string | null
+  imageSizeWarning?: string | null
   showWishlistFields?: boolean
+  showImageSource?: boolean
 }
 
 export function CanFormFields({
   data,
   onChange,
-  imagePreview,
-  onImageUpload,
-  uploading,
+  onImageFileSelect,
+  onImageRemove,
+  imageUploading,
+  imageUploadError,
+  imageSizeWarning,
   showWishlistFields,
+  showImageSource,
 }: CanFormFieldsProps) {
   const set = <K extends keyof CanFormData>(key: K, value: CanFormData[K]) => {
     onChange({ ...data, [key]: value })
   }
 
-  const preview = imagePreview ?? data.image_url
   const wishlist = showWishlistFields ?? data.is_wishlist
 
   return (
     <div className="flex flex-col gap-4">
-      {preview ? (
-        <div className="mx-auto aspect-square w-40 overflow-hidden rounded-2xl border border-monster-border bg-monster-dark">
-          <img src={preview} alt="Can preview" className="h-full w-full object-contain p-2" />
-        </div>
-      ) : null}
-
-      {onImageUpload ? (
-        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-monster-border p-4 transition-colors hover:border-monster-green">
-          <span className="text-sm text-monster-muted">
-            {uploading ? 'Uploading...' : 'Upload your own image'}
-          </span>
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={uploading}
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) onImageUpload(file)
-            }}
-          />
-        </label>
+      {onImageFileSelect ? (
+        <CanImageUpload
+          data={data}
+          onChange={(patch) => onChange({ ...data, ...patch })}
+          onFileSelect={onImageFileSelect}
+          onRemove={onImageRemove ?? (() => onChange({ ...data, user_image_url: '', image_source: 'placeholder' }))}
+          uploading={imageUploading}
+          uploadError={imageUploadError}
+          sizeWarning={imageSizeWarning}
+          showSourceLabel={showImageSource}
+        />
       ) : null}
 
       {wishlist ? (
