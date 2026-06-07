@@ -1,4 +1,12 @@
 import type { Can, CanInsert, CanUpdate } from '../types/can'
+import {
+  formatSaveCanError,
+  logSaveCanError,
+  shouldRetryWithoutExtendedColumns,
+  stripExtendedCanColumns,
+  toSupabaseCanRow,
+  toSupabaseCanUpdate,
+} from './canSupabase'
 import { useGuestStorage } from './guestStorage'
 import { normalizeCanRecord, normalizeCanTradeFields } from './tradeFields'
 import { removeTradeRecordsForCan, syncTradeFromCan } from './tradeSync'
@@ -57,17 +65,32 @@ export async function createCan(
   }
 
   const client = requireClient()
-  const { data, error } = await client
-    .from('cans')
-    .insert({ ...normalized, user_id: userId })
-    .select()
-    .single()
+  const row = toSupabaseCanRow(userId, normalized)
 
-  if (error) throw error
-  const created = normalizeCanRecord(data as Can)
-  if (!options?.skipTradeSync) {
-    await syncTradeFromCan(created, options?.maxActiveListings ?? 999)
+  let result = await client.from('cans').insert(row).select().single()
+
+  if (result.error && shouldRetryWithoutExtendedColumns(result.error)) {
+    if (import.meta.env.DEV) {
+      console.warn('[SAVE_CAN_ERROR] Retrying insert without extended columns', result.error)
+    }
+    result = await client.from('cans').insert(stripExtendedCanColumns(row)).select().single()
   }
+
+  if (result.error) {
+    logSaveCanError(result.error, { operation: 'insert', userId, row })
+    throw new Error(formatSaveCanError(result.error))
+  }
+
+  const created = normalizeCanRecord(result.data as Can)
+
+  if (!options?.skipTradeSync) {
+    try {
+      await syncTradeFromCan(created, options?.maxActiveListings ?? 999)
+    } catch (tradeErr) {
+      logSaveCanError(tradeErr, { operation: 'trade_sync_after_insert', canId: created.id })
+    }
+  }
+
   return created
 }
 
@@ -85,18 +108,37 @@ export async function updateCan(
   }
 
   const client = requireClient()
-  const { data, error } = await client
-    .from('cans')
-    .update(normalized)
-    .eq('id', id)
-    .select()
-    .single()
+  const row = toSupabaseCanUpdate(normalized)
 
-  if (error) throw error
-  const updated = normalizeCanRecord(data as Can)
-  if (!options?.skipTradeSync) {
-    await syncTradeFromCan(updated, options?.maxActiveListings ?? 999)
+  let result = await client.from('cans').update(row).eq('id', id).select().single()
+
+  if (result.error && shouldRetryWithoutExtendedColumns(result.error)) {
+    if (import.meta.env.DEV) {
+      console.warn('[SAVE_CAN_ERROR] Retrying update without extended columns', result.error)
+    }
+    result = await client
+      .from('cans')
+      .update(stripExtendedCanColumns(row))
+      .eq('id', id)
+      .select()
+      .single()
   }
+
+  if (result.error) {
+    logSaveCanError(result.error, { operation: 'update', canId: id, row })
+    throw new Error(formatSaveCanError(result.error))
+  }
+
+  const updated = normalizeCanRecord(result.data as Can)
+
+  if (!options?.skipTradeSync) {
+    try {
+      await syncTradeFromCan(updated, options?.maxActiveListings ?? 999)
+    } catch (tradeErr) {
+      logSaveCanError(tradeErr, { operation: 'trade_sync_after_update', canId: id })
+    }
+  }
+
   return updated
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { formatSaveCanError, logSaveCanError } from '../lib/canSupabase'
 import { Layout } from '../components/layout/Layout'
 import { DuplicateCanScreen } from '../components/cans/DuplicateCanScreen'
 import {
@@ -35,7 +36,7 @@ import type { MasterCan } from '../types/masterCan'
 type PageStep = AddCanWizardStep | 'duplicate'
 
 export function AddCanPage() {
-  const { storageUserId } = useAuth()
+  const { storageUserId, user, isCloudSynced } = useAuth()
   const { triggerRegisterCTA } = useGuestMessaging()
   const { cans, add, update } = useCans(storageUserId)
   const navigate = useNavigate()
@@ -108,7 +109,10 @@ export function AddCanPage() {
         }
 
         setStep('match')
-      } catch {
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error('[AddCan] Barcode lookup failed', { barcode, err })
+        }
         const nextForm = { ...emptyFormData(), barcode }
         setForm(nextForm)
         setMatchedMaster(null)
@@ -223,9 +227,18 @@ export function AddCanPage() {
         }).catch(() => undefined)
       }
 
-      navigate(`/can/${created.id}`)
+      const savedName = created.name || form.name || 'Can'
+      navigate('/collection', {
+        replace: true,
+        state: { saveToast: `"${savedName}" added to your collection` },
+      })
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save can')
+      logSaveCanError(err, {
+        barcode: form.barcode,
+        userId: isCloudSynced ? user?.id : storageUserId,
+        isCloudSynced,
+      })
+      setSaveError(formatSaveCanError(err))
     } finally {
       setSaveLoading(false)
     }

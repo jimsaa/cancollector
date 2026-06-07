@@ -86,11 +86,9 @@ export function LoginPage() {
           <Card className="p-4">
             <p className="text-sm font-semibold text-white">Cloud sign-in not configured</p>
             <p className="mt-2 text-sm text-monster-muted">
-              Add Supabase environment variables to enable sign-in, or continue using Guest Mode.
+              Cloud sign-in is not available on this deployment. Continue as a guest and your
+              collection will be saved on this device.
             </p>
-            <Link to="/register" className="mt-4 block text-center text-sm text-monster-green hover:underline">
-              View setup steps
-            </Link>
             <Link to="/" className="mt-2 block text-center text-sm text-monster-muted hover:text-white">
               Continue as guest
             </Link>

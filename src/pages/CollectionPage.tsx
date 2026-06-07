@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Layout } from '../components/layout/Layout'
 import { CanCard } from '../components/cans/CanCard'
 import { CanFiltersBar } from '../components/cans/CanFilters'
@@ -14,10 +15,21 @@ import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 
 export function CollectionPage() {
+  const location = useLocation()
   const { storageUserId } = useAuth()
   const { isGuest } = useGuestMessaging()
   const { cans, loading, error } = useCans(storageUserId)
   const [filters, setFilters] = useState(defaultFilters)
+  const [saveToast, setSaveToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    const message = (location.state as { saveToast?: string } | null)?.saveToast
+    if (!message) return
+    setSaveToast(message)
+    window.history.replaceState({}, document.title)
+    const timer = window.setTimeout(() => setSaveToast(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [location.state])
 
   const collection = useMemo(() => cans.filter((c) => !c.is_wishlist), [cans])
   const filtered = filterAndSortCans(collection, filters)
@@ -26,6 +38,15 @@ export function CollectionPage() {
   return (
     <Layout title="Collection">
       <div className="flex flex-col gap-4">
+        {saveToast ? (
+          <div
+            role="status"
+            className="rounded-xl border border-monster-green/40 bg-monster-green/10 px-4 py-3 text-sm text-monster-green"
+          >
+            {saveToast}
+          </div>
+        ) : null}
+
         <CanFiltersBar filters={filters} onChange={setFilters} countries={countries} />
 
         {loading ? (

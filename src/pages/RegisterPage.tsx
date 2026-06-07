@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/brand/Logo'
 import { APP_NAME } from '../constants/branding'
@@ -7,13 +7,7 @@ import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { useAuth } from '../context/AuthContext'
-import {
-  formatSupabaseError,
-  getSupabaseEnvStatus,
-  logAuthError,
-  logSupabaseError,
-  testSupabaseConnection,
-} from '../lib/supabaseDebug'
+import { formatSupabaseError, logAuthError } from '../lib/supabaseDebug'
 import { SignUpAuthError } from '../types/auth'
 
 export function RegisterPage() {
@@ -26,14 +20,6 @@ export function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [signupError, setSignupError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
-  const [connectionTesting, setConnectionTesting] = useState(false)
-  const [connectionResult, setConnectionResult] = useState<string | null>(null)
-
-  const envStatus = useMemo(() => getSupabaseEnvStatus(), [])
-
-  useEffect(() => {
-    console.info('[Register] Supabase env', envStatus)
-  }, [envStatus])
 
   useEffect(() => {
     if (user && isCloudSynced) {
@@ -50,7 +36,6 @@ export function RegisterPage() {
     e.preventDefault()
     setSignupError(null)
     setWarning(null)
-    setConnectionResult(null)
 
     if (password !== confirmPassword) {
       setSignupError('Passwords do not match')
@@ -95,26 +80,6 @@ export function RegisterPage() {
     }
   }
 
-  const handleTestConnection = async () => {
-    setConnectionTesting(true)
-    setConnectionResult(null)
-    setSignupError(null)
-    try {
-      const result = await testSupabaseConnection()
-      setConnectionResult(result.message)
-      if (!result.success) {
-        console.error('[Register] Connection test failed', result)
-      } else {
-        console.info('[Register] Connection test passed', result)
-      }
-    } catch (err) {
-      logSupabaseError('register.testConnection', err)
-      setConnectionResult(formatSupabaseError(err, 'Connection test failed'))
-    } finally {
-      setConnectionTesting(false)
-    }
-  }
-
   if (!isConfigured) {
     return (
       <Layout title="Register" hideNav>
@@ -122,15 +87,9 @@ export function RegisterPage() {
           <Card className="p-4">
             <p className="text-sm font-semibold text-white">Cloud accounts not configured</p>
             <p className="mt-2 text-sm text-monster-muted">
-              Add <code className="text-monster-green">VITE_SUPABASE_URL</code> and{' '}
-              <code className="text-monster-green">VITE_SUPABASE_ANON_KEY</code> to your{' '}
-              <code className="text-monster-green">.env</code> file, then restart the dev server.
+              Cloud sign-in is not available on this deployment. Continue as a guest and your
+              collection will be saved on this device.
             </p>
-            <ul className="mt-3 space-y-1 text-xs text-monster-muted">
-              <li>VITE_SUPABASE_URL: {envStatus.urlLoaded ? 'loaded' : 'missing'}</li>
-              <li>VITE_SUPABASE_ANON_KEY: {envStatus.keyLoaded ? 'loaded' : 'missing'}</li>
-              <li>Client initialized: {envStatus.clientInitialized ? 'yes' : 'no'}</li>
-            </ul>
             <Link to="/" className="mt-4 block text-center text-sm text-monster-green hover:underline">
               Continue as guest
             </Link>
@@ -212,37 +171,7 @@ export function RegisterPage() {
             <Button type="submit" fullWidth loading={loading}>
               Create Account
             </Button>
-
-            <Button
-              type="button"
-              variant="secondary"
-              fullWidth
-              loading={connectionTesting}
-              onClick={handleTestConnection}
-            >
-              Test Supabase Connection
-            </Button>
-
-            {connectionResult ? (
-              <p
-                className={`text-xs ${connectionResult.startsWith('Connected') ? 'text-monster-green' : 'text-red-400'}`}
-              >
-                {connectionResult}
-              </p>
-            ) : null}
           </form>
-        </Card>
-
-        <Card className="p-3">
-          <p className="text-xs font-semibold text-white">Supabase config</p>
-          <ul className="mt-2 space-y-1 text-xs text-monster-muted">
-            <li>VITE_SUPABASE_URL: {envStatus.urlLoaded ? envStatus.urlPreview : 'missing'}</li>
-            <li>
-              VITE_SUPABASE_ANON_KEY:{' '}
-              {envStatus.keyLoaded ? envStatus.keyPreview : 'missing'}
-            </li>
-            <li>Client initialized: {envStatus.clientInitialized ? 'yes' : 'no'}</li>
-          </ul>
         </Card>
 
         <p className="text-center text-sm text-monster-muted">
