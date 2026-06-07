@@ -32,7 +32,7 @@ export function DashboardPage() {
   const { user } = useAuth()
   const { cans, loading, error } = useCans(user?.id)
   const stats = computeStats(cans)
-  const recent = cans.slice(0, 6)
+  const recent = cans.filter((c) => !c.is_wishlist).slice(0, 6)
 
   return (
     <Layout title="Dashboard">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
+import { Logo } from '../brand/Logo'
 import { Button } from '../ui/Button'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -59,9 +60,7 @@ export function InstallPrompt() {
   return (
     <div className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-lg">
       <div className="flex items-start gap-3 rounded-2xl border border-monster-green/40 bg-monster-card p-4 shadow-lg">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-monster-green font-black text-black">
-          M
-        </div>
+        <Logo size="md" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-white">Install Can Collector</p>
           <p className="mt-0.5 text-xs text-monster-muted">

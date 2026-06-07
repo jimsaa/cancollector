@@ -1,4 +1,5 @@
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'unknown'
+export type WishlistStatus = 'wanted' | 'missing'
 
 export interface Can {
   id: string
@@ -9,6 +10,7 @@ export interface Can {
   flavor: string | null
   volume: string | null
   country: string | null
+  country_variant: string | null
   image_url: string | null
   opened: boolean
   purchase_date: string | null
@@ -17,6 +19,8 @@ export interface Can {
   notes: string | null
   rarity: Rarity
   quantity: number
+  is_wishlist: boolean
+  wishlist_status: WishlistStatus | null
 }
 
 export type CanInsert = Omit<Can, 'id' | 'user_id' | 'added_date'> & {
@@ -46,4 +50,10 @@ export interface CanFilters {
   rarity: Rarity | 'all'
   country: string
   sort: SortOption
+}
+
+export interface CollectionBackup {
+  version: 1
+  exported_at: string
+  cans: Can[]
 }

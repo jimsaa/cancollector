@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Can, CanInsert, CanUpdate } from '../types/can'
-import { createCan, deleteCan, fetchCans, updateCan } from '../lib/cans'
+import { createCan, deleteCan, fetchCans, importCans, updateCan } from '../lib/cans'
 
 export function useCans(userId: string | undefined) {
   const [cans, setCans] = useState<Can[]>([])
@@ -51,5 +51,14 @@ export function useCans(userId: string | undefined) {
     setCans((prev) => prev.filter((c) => c.id !== id))
   }, [])
 
-  return { cans, loading, error, reload: load, add, update, remove }
+  const importCollection = useCallback(
+    async (items: Can[], mode: 'merge' | 'replace') => {
+      if (!userId) throw new Error('Not authenticated')
+      await importCans(userId, items, mode)
+      await load()
+    },
+    [userId, load],
+  )
+
+  return { cans, loading, error, reload: load, add, update, remove, importCollection }
 }

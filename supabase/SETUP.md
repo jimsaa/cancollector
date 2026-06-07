@@ -22,11 +22,20 @@ This guide walks through everything needed to connect the app to Supabase: datab
 
 ## 2. Enable authentication
 
-The app uses email + password sign-in.
+The app uses email + password sign-in with user profiles.
 
 1. In the Supabase dashboard, open **Authentication → Providers**.
 2. Ensure **Email** is enabled (it is by default).
 3. Optional: under **Authentication → Settings**, turn off **Confirm email** during development so you can sign up and sign in immediately without verifying email.
+
+### App modes
+
+| Mode | When | Behavior |
+|------|------|----------|
+| **LOCAL MODE** | `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` missing | Data in `localStorage`; no login required |
+| **CLOUD MODE** | Both env vars set | Supabase Auth + cloud collection; login required |
+
+When you add Supabase credentials to an app that was used in Local Mode, sign in and you will be prompted to **import your local collection** into the cloud.
 
 ---
 
@@ -34,7 +43,15 @@ The app uses email + password sign-in.
 
 Open **SQL Editor** in the Supabase dashboard, click **New query**, paste the script below, and click **Run**.
 
-This creates the `cans` table, indexes, Row Level Security policies, the `can-images` storage bucket, and storage policies.
+Paste and run **[`migration.sql`](./migration.sql)** — the complete, idempotent migration for new projects. It creates:
+
+- `profiles` and `cans` tables (with `updated_at` columns and triggers)
+- Indexes for common queries
+- RLS on both tables
+- Auto-create profile trigger on `auth.users` insert
+- `can-images` storage bucket + policies
+
+**Existing projects:** If you already ran an older schema, run [`migration-auth.sql`](./migration-auth.sql) to add profiles and backfill users, or re-run `migration.sql` (safe to re-run).
 
 ```sql
 -- ============================================================
@@ -159,8 +176,10 @@ In the Supabase dashboard:
 
 | Check | Where |
 |-------|-------|
+| `profiles` table exists (`display_name`, `premium_status`, `premium_until`) | **Table Editor** |
 | `cans` table exists with all columns | **Table Editor** |
-| RLS is enabled on `cans` | **Table Editor → cans → RLS** (should show policies) |
+| RLS is enabled on `profiles` and `cans` | **Table Editor → RLS** |
+| `on_auth_user_created` trigger exists | **Database → Triggers** (or re-run migration) |
 | `can-images` bucket exists and is **Public** | **Storage** |
 
 ---
@@ -187,6 +206,14 @@ If you prefer not to use SQL for storage:
 ---
 
 ## 5. Row Level Security summary
+
+### `public.profiles`
+
+| Policy | Operation | Rule |
+|--------|-----------|------|
+| Users can view own profile | `SELECT` | `auth.uid() = id` |
+| Users can insert own profile | `INSERT` | `auth.uid() = id` |
+| Users can update own profile | `UPDATE` | `auth.uid() = id` |
 
 ### `public.cans`
 
@@ -271,11 +298,19 @@ http://localhost:3003
 
 Open that URL in your browser.
 
-### First-time app flow
+### First-time app flow (Cloud Mode)
 
-1. You should see the **Sign In** screen (not the "Supabase Not Configured" warning).
-2. Click **Sign up** and create an account with email + password.
-3. Sign in and use **Add** to scan or enter a barcode and save a can.
+1. With `.env` configured, restart `npm run dev` — the header shows **CLOUD MODE**.
+2. Open **Register** (`/register`) and create an account with name, email, and password.
+3. After sign-in, if you used Local Mode before, you will see **Import local collection?**
+4. Use **Add** to scan or enter a barcode and save a can.
+5. Open **Profile** to see your name, email, plan status, and sign out.
+
+### Local Mode (no Supabase)
+
+1. Leave `.env` empty or omit Supabase variables.
+2. The header shows **LOCAL MODE** — no login required.
+3. Add Supabase credentials later to switch to Cloud Mode and import your local cans.
 
 ### Other useful commands
 

@@ -12,6 +12,7 @@ export function filterAndSortCans(cans: Can[], filters: CanFilters): Can[] {
         c.barcode?.includes(q) ||
         c.flavor?.toLowerCase().includes(q) ||
         c.country?.toLowerCase().includes(q) ||
+        c.country_variant?.toLowerCase().includes(q) ||
         c.brand?.toLowerCase().includes(q),
     )
   }

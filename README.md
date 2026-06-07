@@ -22,13 +22,13 @@ npm install
 
 See **[supabase/SETUP.md](./supabase/SETUP.md)** for the full guide.
 
-Without Supabase credentials, the app runs in **LOCAL MODE** (data stored in the browser).
+Without Supabase credentials, the app runs in **LOCAL MODE** (data stored in the browser). With Supabase configured, it runs in **CLOUD MODE** with user accounts and online sync.
 
 Quick version:
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Run the SQL in `supabase/schema.sql`
-3. Copy `.env.example` to `.env` and add your project URL + anon key
+2. Run `supabase/migration.sql` (or `migration-auth.sql` on existing projects)
+3. Copy `.env.example` to `.env` and add `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (anon key only — never service role)
 4. Enable Email auth in Authentication → Providers
 
 ### 3. Run the dev server
@@ -41,11 +41,15 @@ Open [http://localhost:3003](http://localhost:3003).
 
 ## Features
 
+- **Auth** — register, login, logout, profile (Cloud Mode)
+- **Local → cloud import** — migrate localStorage collection after sign-in
 - **Dashboard** — collection stats and recently added cans
 - **Add Can** — camera barcode scanner + manual entry, Open Food Facts lookup
-- **Collection** — searchable grid with filters and sorting
+- **Collection** — searchable grid with filters, sorting, export/import backup
+- **Wishlist** — track wanted and missing cans
 - **Can Detail** — view/edit metadata, toggle opened/trade status, delete
 - **Trade List** — shareable list of cans available for trade
+- **Premium** — placeholder page (coming soon)
 - **PWA** — installable on mobile, works over HTTPS on Vercel
 
 ## Barcode Scanning

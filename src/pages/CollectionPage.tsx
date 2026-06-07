@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Layout } from '../components/layout/Layout'
 import { CanCard } from '../components/cans/CanCard'
 import { CanFiltersBar } from '../components/cans/CanFilters'
+import { BackupControls } from '../components/cans/BackupControls'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAuth } from '../hooks/useAuth'
@@ -13,11 +14,12 @@ import { Button } from '../components/ui/Button'
 
 export function CollectionPage() {
   const { user } = useAuth()
-  const { cans, loading, error } = useCans(user?.id)
+  const { cans, loading, error, importCollection } = useCans(user?.id)
   const [filters, setFilters] = useState(defaultFilters)
 
-  const filtered = filterAndSortCans(cans, filters)
-  const countries = getUniqueCountries(cans)
+  const collection = useMemo(() => cans.filter((c) => !c.is_wishlist), [cans])
+  const filtered = filterAndSortCans(collection, filters)
+  const countries = getUniqueCountries(collection)
 
   return (
     <Layout title="Collection">
@@ -31,14 +33,14 @@ export function CollectionPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Package size={40} />}
-            title={cans.length === 0 ? 'Collection is empty' : 'No matching cans'}
+            title={collection.length === 0 ? 'Collection is empty' : 'No matching cans'}
             description={
-              cans.length === 0
+              collection.length === 0
                 ? 'Start building your Monster Energy collection.'
                 : 'Try adjusting your search or filters.'
             }
             action={
-              cans.length === 0 ? (
+              collection.length === 0 ? (
                 <Link to="/add">
                   <Button>Add Can</Button>
                 </Link>
@@ -48,7 +50,7 @@ export function CollectionPage() {
         ) : (
           <>
             <p className="text-xs text-monster-muted">
-              {filtered.length} of {cans.length} cans
+              {filtered.length} of {collection.length} cans
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {filtered.map((can) => (
@@ -57,6 +59,10 @@ export function CollectionPage() {
             </div>
           </>
         )}
+
+        {user ? (
+          <BackupControls cans={cans} userId={user.id} onImport={importCollection} />
+        ) : null}
       </div>
     </Layout>
   )

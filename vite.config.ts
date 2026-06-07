@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'pwa-icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['logo.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Can Collector',
         short_name: 'CanCollector',
@@ -20,6 +20,11 @@ export default defineConfig({
         start_url: '/',
         categories: ['lifestyle', 'utilities'],
         icons: [
+          {
+            src: 'logo.png',
+            sizes: 'any',
+            type: 'image/png',
+          },
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',

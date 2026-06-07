@@ -94,6 +94,7 @@ export function ScanConfirmScreen({
           <MetaItem label="Brand" value={data.brand} />
           <MetaItem label="Volume" value={data.volume} />
           <MetaItem label="Country" value={data.country} />
+          <MetaItem label="Country Variant" value={data.country_variant} />
           <MetaItem label="Quantity" value={String(data.quantity)} />
           <MetaItem label="Rarity" value={data.rarity} />
         </div>

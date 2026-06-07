@@ -4,6 +4,7 @@ import { Search, Camera, CameraOff, Keyboard } from 'lucide-react'
 import { Layout } from '../components/layout/Layout'
 import { BarcodeScanner } from '../components/scanner/BarcodeScanner'
 import { ScanConfirmScreen, type LookupStatus } from '../components/scanner/ScanConfirmScreen'
+import { DuplicateCanScreen } from '../components/cans/DuplicateCanScreen'
 import { CanFormFields, emptyFormData, formDataToInsert, type CanFormData } from '../components/cans/CanForm'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
@@ -13,20 +14,23 @@ import { useAuth } from '../hooks/useAuth'
 import { useCans } from '../hooks/useCans'
 import { fetchProductByBarcode } from '../lib/openFoodFacts'
 import { uploadCanImage } from '../lib/storage'
+import { findDuplicateCan } from '../lib/duplicates'
 import type { CameraErrorInfo } from '../lib/cameraErrors'
 import { isCameraSupported, isSecureContext } from '../lib/cameraErrors'
+import type { Can } from '../types/can'
 
-type AddStep = 'scan' | 'confirm' | 'edit'
+type AddStep = 'scan' | 'confirm' | 'edit' | 'duplicate'
 
 export function AddCanPage() {
   const { user } = useAuth()
-  const { add } = useCans(user?.id)
+  const { cans, add, update } = useCans(user?.id)
   const navigate = useNavigate()
 
   const [step, setStep] = useState<AddStep>('scan')
   const [scanning, setScanning] = useState(false)
   const [manualBarcode, setManualBarcode] = useState('')
   const [form, setForm] = useState<CanFormData>(emptyFormData())
+  const [duplicate, setDuplicate] = useState<Can | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupStatus, setLookupStatus] = useState<LookupStatus>('not_found')
   const [cameraError, setCameraError] = useState<CameraErrorInfo | null>(null)
@@ -35,6 +39,7 @@ export function AddCanPage() {
   const [uploading, setUploading] = useState(false)
 
   const cameraAvailable = isSecureContext() && isCameraSupported()
+  const collectionCans = cans.filter((c) => !c.is_wishlist)
 
   const resetToScan = useCallback(() => {
     setStep('scan')
@@ -43,37 +48,62 @@ export function AddCanPage() {
     setSaveError(null)
     setCameraError(null)
     setForm(emptyFormData())
+    setDuplicate(null)
     setManualBarcode('')
     setLookupStatus('not_found')
   }, [])
 
-  const applyProduct = useCallback(async (barcode: string) => {
-    setLookupLoading(true)
-    setSaveError(null)
-    setScanning(false)
+  const checkDuplicate = useCallback(
+    (barcode: string, country: string, countryVariant: string) => {
+      const match = findDuplicateCan(collectionCans, barcode, country, countryVariant)
+      if (match) {
+        setDuplicate(match)
+        setStep('duplicate')
+        return true
+      }
+      return false
+    },
+    [collectionCans],
+  )
 
-    try {
-      const product = await fetchProductByBarcode(barcode)
-      setForm({
-        ...emptyFormData(),
-        barcode,
-        name: product?.name ?? '',
-        brand: product?.brand ?? 'Monster',
-        flavor: product?.flavor ?? '',
-        volume: product?.volume ?? '',
-        country: product?.country ?? '',
-        image_url: product?.image_url ?? '',
-      })
-      setLookupStatus(product ? 'found' : 'not_found')
-      setStep('confirm')
-    } catch {
-      setForm({ ...emptyFormData(), barcode })
-      setLookupStatus('error')
-      setStep('confirm')
-    } finally {
-      setLookupLoading(false)
-    }
-  }, [])
+  const applyProduct = useCallback(
+    async (barcode: string) => {
+      setLookupLoading(true)
+      setSaveError(null)
+      setScanning(false)
+      setDuplicate(null)
+
+      try {
+        const product = await fetchProductByBarcode(barcode)
+        const nextForm: CanFormData = {
+          ...emptyFormData(),
+          barcode,
+          name: product?.name ?? '',
+          brand: product?.brand ?? 'Monster',
+          flavor: product?.flavor ?? '',
+          volume: product?.volume ?? '',
+          country: product?.country ?? '',
+          image_url: product?.image_url ?? '',
+        }
+        setForm(nextForm)
+        setLookupStatus(product ? 'found' : 'not_found')
+
+        if (checkDuplicate(barcode, nextForm.country, nextForm.country_variant)) {
+          return
+        }
+        setStep('confirm')
+      } catch {
+        const nextForm = { ...emptyFormData(), barcode }
+        setForm(nextForm)
+        setLookupStatus('error')
+        if (checkDuplicate(barcode, '', '')) return
+        setStep('confirm')
+      } finally {
+        setLookupLoading(false)
+      }
+    },
+    [checkDuplicate],
+  )
 
   const handleScan = useCallback(
     (barcode: string) => {
@@ -91,31 +121,9 @@ export function AddCanPage() {
     applyProduct(code)
   }
 
-  const startScan = () => {
-    setCameraError(null)
-    setSaveError(null)
-    setScanning(true)
-  }
-
-  const stopScan = () => {
-    setScanning(false)
-  }
-
-  const handleImageUpload = async (file: File) => {
-    if (!user) return
-    setUploading(true)
-    setSaveError(null)
-    try {
-      const url = await uploadCanImage(user.id, file)
-      setForm((prev) => ({ ...prev, image_url: url }))
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Image upload failed')
-    } finally {
-      setUploading(false)
-    }
-  }
-
   const handleSave = async () => {
+    if (checkDuplicate(form.barcode, form.country, form.country_variant)) return
+
     setSaveLoading(true)
     setSaveError(null)
     try {
@@ -126,6 +134,25 @@ export function AddCanPage() {
     } finally {
       setSaveLoading(false)
     }
+  }
+
+  const handleIncreaseQuantity = async () => {
+    if (!duplicate) return
+    setSaveLoading(true)
+    setSaveError(null)
+    try {
+      const updated = await update(duplicate.id, { quantity: duplicate.quantity + 1 })
+      navigate(`/can/${updated.id}`)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to update quantity')
+    } finally {
+      setSaveLoading(false)
+    }
+  }
+
+  const handleAddAsNewVariant = () => {
+    setDuplicate(null)
+    setStep('edit')
   }
 
   return (
@@ -140,41 +167,27 @@ export function AddCanPage() {
                 onError={setCameraError}
                 onScanningChange={setScanning}
               />
-
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
-                  onClick={startScan}
+                  onClick={() => { setCameraError(null); setScanning(true) }}
                   disabled={scanning || lookupLoading || !cameraAvailable}
                   className="py-3.5"
                 >
                   <Camera size={20} />
                   Start Scan
                 </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={stopScan}
-                  disabled={!scanning}
-                  className="py-3.5"
-                >
+                <Button type="button" variant="secondary" onClick={() => setScanning(false)} disabled={!scanning} className="py-3.5">
                   <CameraOff size={20} />
                   Stop Scan
                 </Button>
               </div>
-
               {!cameraAvailable ? (
                 <Card className="border-yellow-600/40 bg-yellow-900/20">
                   <p className="text-sm font-semibold text-yellow-300">Camera unavailable</p>
-                  <p className="mt-1 text-xs text-monster-muted">
-                    {!isSecureContext()
-                      ? 'Use HTTPS or localhost for camera access.'
-                      : 'Your browser does not support camera scanning.'}{' '}
-                    Use manual barcode entry below.
-                  </p>
+                  <p className="mt-1 text-xs text-monster-muted">Use manual barcode entry below.</p>
                 </Card>
               ) : null}
-
               {cameraError ? (
                 <Card className="border-red-800/50 bg-red-950/30">
                   <p className="text-sm font-semibold text-red-300">{cameraError.title}</p>
@@ -182,17 +195,11 @@ export function AddCanPage() {
                 </Card>
               ) : null}
             </section>
-
             <Card>
               <div className="mb-3 flex items-center gap-2">
                 <Keyboard size={16} className="text-monster-green" />
-                <p className="text-xs font-medium uppercase tracking-wide text-monster-muted">
-                  Manual Barcode Entry
-                </p>
+                <p className="text-xs font-medium uppercase tracking-wide text-monster-muted">Manual Barcode Entry</p>
               </div>
-              <p className="mb-3 text-xs text-monster-muted">
-                Camera not working? Type or paste the barcode number here instead.
-              </p>
               <div className="flex gap-2">
                 <Input
                   placeholder="e.g. 5053947891234"
@@ -201,24 +208,24 @@ export function AddCanPage() {
                   onKeyDown={(e) => e.key === 'Enter' && handleManualLookup()}
                   inputMode="numeric"
                 />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleManualLookup}
-                  loading={lookupLoading}
-                  disabled={!manualBarcode.trim()}
-                  className="shrink-0"
-                  aria-label="Look up barcode"
-                >
+                <Button type="button" variant="secondary" onClick={handleManualLookup} loading={lookupLoading} disabled={!manualBarcode.trim()} className="shrink-0" aria-label="Look up barcode">
                   <Search size={18} />
                 </Button>
               </div>
             </Card>
-
-            {lookupLoading ? (
-              <LoadingSpinner label="Fetching product from Open Food Facts..." />
-            ) : null}
+            {lookupLoading ? <LoadingSpinner label="Fetching product from Open Food Facts..." /> : null}
           </>
+        ) : null}
+
+        {step === 'duplicate' && duplicate ? (
+          <DuplicateCanScreen
+            existing={duplicate}
+            increasing={saveLoading}
+            error={saveError}
+            onIncreaseQuantity={handleIncreaseQuantity}
+            onAddAsNewVariant={handleAddAsNewVariant}
+            onScanAgain={resetToScan}
+          />
         ) : null}
 
         {step === 'confirm' ? (
@@ -237,31 +244,23 @@ export function AddCanPage() {
           <>
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-white">Edit can details</p>
-              <button
-                type="button"
-                onClick={() => setStep('confirm')}
-                className="text-xs text-monster-green hover:underline"
-              >
+              <button type="button" onClick={() => setStep(duplicate ? 'duplicate' : 'confirm')} className="text-xs text-monster-green hover:underline">
                 Back to review
               </button>
             </div>
-
-            <CanFormFields
-              data={form}
-              onChange={setForm}
-              onImageUpload={handleImageUpload}
-              uploading={uploading}
-            />
-
+            <CanFormFields data={form} onChange={setForm} onImageUpload={async (file) => {
+              if (!user) return
+              setUploading(true)
+              try {
+                const url = await uploadCanImage(user.id, file)
+                setForm((prev) => ({ ...prev, image_url: url }))
+              } finally {
+                setUploading(false)
+              }
+            }} uploading={uploading} />
             {saveError ? <p className="text-sm text-red-400">{saveError}</p> : null}
-
-            <Button fullWidth loading={saveLoading} onClick={handleSave} className="py-4">
-              Confirm & Save to Collection
-            </Button>
-
-            <Button variant="ghost" fullWidth onClick={resetToScan}>
-              Scan Another Can
-            </Button>
+            <Button fullWidth loading={saveLoading} onClick={handleSave} className="py-4">Confirm & Save to Collection</Button>
+            <Button variant="ghost" fullWidth onClick={resetToScan}>Scan Another Can</Button>
           </>
         ) : null}
       </div>

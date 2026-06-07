@@ -5,6 +5,7 @@ import {
   deleteLocalCan,
   fetchLocalCanById,
   fetchLocalCans,
+  replaceLocalCans,
   updateLocalCan,
 } from './localCans'
 import { supabase } from './supabase'
@@ -100,10 +101,39 @@ export interface CollectionStats {
 }
 
 export function computeStats(cans: Can[]): CollectionStats {
+  const collection = cans.filter((c) => !c.is_wishlist)
   return {
-    total: cans.reduce((sum, c) => sum + c.quantity, 0),
-    opened: cans.filter((c) => c.opened).reduce((sum, c) => sum + c.quantity, 0),
-    unopened: cans.filter((c) => !c.opened).reduce((sum, c) => sum + c.quantity, 0),
-    forTrade: cans.filter((c) => c.available_for_trade).reduce((sum, c) => sum + c.quantity, 0),
+    total: collection.reduce((sum, c) => sum + c.quantity, 0),
+    opened: collection.filter((c) => c.opened).reduce((sum, c) => sum + c.quantity, 0),
+    unopened: collection.filter((c) => !c.opened).reduce((sum, c) => sum + c.quantity, 0),
+    forTrade: collection.filter((c) => c.available_for_trade).reduce((sum, c) => sum + c.quantity, 0),
   }
+}
+
+export async function importCans(userId: string, cans: Can[], mode: 'merge' | 'replace'): Promise<void> {
+  if (isLocalMode) {
+    if (mode === 'replace') {
+      await replaceLocalCans(userId, cans)
+      return
+    }
+    const existing = await fetchLocalCans(userId)
+    await replaceLocalCans(userId, [...existing, ...cans])
+    return
+  }
+
+  const client = requireClient()
+  if (mode === 'replace') {
+    const { error: delError } = await client.from('cans').delete().eq('user_id', userId)
+    if (delError) throw delError
+  }
+
+  const rows = cans.map(({ id: _id, user_id: _uid, added_date, ...rest }) => ({
+    ...rest,
+    user_id: userId,
+    added_date: added_date ?? new Date().toISOString(),
+  }))
+
+  if (rows.length === 0) return
+  const { error } = await client.from('cans').insert(rows)
+  if (error) throw error
 }

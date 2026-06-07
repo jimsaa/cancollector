@@ -24,9 +24,19 @@ function readAll(): Can[] {
   try {
     const raw = localStorage.getItem(CANS_KEY)
     if (!raw) return []
-    return JSON.parse(raw) as Can[]
+    const parsed = JSON.parse(raw) as Can[]
+    return parsed.map(migrateCan)
   } catch {
     return []
+  }
+}
+
+function migrateCan(c: Can): Can {
+  return {
+    ...c,
+    country_variant: c.country_variant ?? null,
+    is_wishlist: c.is_wishlist ?? false,
+    wishlist_status: c.wishlist_status ?? null,
   }
 }
 
@@ -48,6 +58,7 @@ function toCan(userId: string, input: CanInsert): Can {
     flavor: input.flavor ?? null,
     volume: input.volume ?? null,
     country: input.country ?? null,
+    country_variant: input.country_variant ?? null,
     image_url: input.image_url ?? null,
     opened: input.opened ?? false,
     purchase_date: input.purchase_date ?? null,
@@ -56,6 +67,8 @@ function toCan(userId: string, input: CanInsert): Can {
     notes: input.notes ?? null,
     rarity: input.rarity ?? 'unknown',
     quantity: input.quantity ?? 1,
+    is_wishlist: input.is_wishlist ?? false,
+    wishlist_status: input.wishlist_status ?? null,
   }
 }
 
@@ -66,7 +79,8 @@ export async function fetchLocalCans(userId: string): Promise<Can[]> {
 }
 
 export async function fetchLocalCanById(id: string): Promise<Can | null> {
-  return readAll().find((c) => c.id === id) ?? null
+  const can = readAll().find((c) => c.id === id)
+  return can ? migrateCan(can) : null
 }
 
 export async function createLocalCan(userId: string, can: CanInsert): Promise<Can> {
@@ -80,7 +94,7 @@ export async function updateLocalCan(id: string, updates: CanUpdate): Promise<Ca
   const index = cans.findIndex((c) => c.id === id)
   if (index === -1) throw new Error('Can not found')
 
-  const updated = { ...cans[index], ...updates }
+  const updated = migrateCan({ ...cans[index], ...updates })
   cans[index] = updated
   writeAll(cans)
   return updated
@@ -88,4 +102,26 @@ export async function updateLocalCan(id: string, updates: CanUpdate): Promise<Ca
 
 export async function deleteLocalCan(id: string): Promise<void> {
   writeAll(readAll().filter((c) => c.id !== id))
+}
+
+export async function replaceLocalCans(userId: string, cans: Can[]): Promise<void> {
+  const others = readAll().filter((c) => c.user_id !== userId)
+  writeAll([...others, ...cans.map((c) => migrateCan({ ...c, user_id: userId }))])
+}
+
+/** All cans in localStorage (any local user id). */
+export function getAllLocalCans(): Can[] {
+  return readAll()
+}
+
+export function hasLocalCans(): boolean {
+  return readAll().length > 0
+}
+
+export function clearLocalCollection(): void {
+  try {
+    localStorage.removeItem(CANS_KEY)
+  } catch {
+    // ignore
+  }
 }

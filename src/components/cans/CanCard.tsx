@@ -15,6 +15,8 @@ const rarityColors: Record<string, string> = {
 }
 
 export function CanCard({ can, compact }: CanCardProps) {
+  const countryLabel = [can.country, can.country_variant].filter(Boolean).join(' · ')
+
   return (
     <Link to={`/can/${can.id}`} className="block">
       <Card className="overflow-hidden p-0">
@@ -31,18 +33,18 @@ export function CanCard({ can, compact }: CanCardProps) {
               <span className="text-4xl font-black text-monster-green/20">M</span>
             </div>
           )}
-          {can.quantity > 1 ? (
-            <span className="absolute right-2 top-2 rounded-full bg-monster-green px-2 py-0.5 text-xs font-bold text-black">
-              ×{can.quantity}
-            </span>
-          ) : null}
-          {can.opened ? (
-            <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] uppercase text-monster-muted">
-              Opened
-            </span>
-          ) : null}
+          <span className="absolute right-2 top-2 rounded-full bg-monster-green px-2 py-0.5 text-xs font-bold text-black">
+            ×{can.quantity}
+          </span>
+          <span
+            className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${
+              can.opened ? 'bg-black/70 text-monster-muted' : 'bg-monster-green/90 text-black'
+            }`}
+          >
+            {can.opened ? 'Opened' : 'Sealed'}
+          </span>
           {can.available_for_trade ? (
-            <span className="absolute bottom-2 left-2 rounded-full bg-monster-green/90 px-2 py-0.5 text-[10px] font-semibold text-black">
+            <span className="absolute bottom-2 right-2 rounded-full bg-blue-600/90 px-2 py-0.5 text-[10px] font-semibold text-white">
               Trade
             </span>
           ) : null}
@@ -52,8 +54,22 @@ export function CanCard({ can, compact }: CanCardProps) {
           {!compact && can.flavor ? (
             <p className="truncate text-xs text-monster-muted">{can.flavor}</p>
           ) : null}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {countryLabel ? (
+              <span className="rounded bg-monster-dark px-1.5 py-0.5 text-[10px] text-monster-green">
+                {countryLabel}
+              </span>
+            ) : null}
+            {can.volume ? (
+              <span className="text-[10px] text-monster-muted">{can.volume}</span>
+            ) : null}
+          </div>
           <div className="mt-1 flex items-center justify-between">
-            {can.volume ? <span className="text-[10px] text-monster-muted">{can.volume}</span> : <span />}
+            <span
+              className={`text-[10px] ${can.available_for_trade ? 'text-blue-400' : 'text-monster-muted'}`}
+            >
+              {can.available_for_trade ? 'For trade' : 'Not for trade'}
+            </span>
             <span className={`text-[10px] capitalize ${rarityColors[can.rarity]}`}>{can.rarity}</span>
           </div>
         </div>

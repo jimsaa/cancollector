@@ -100,7 +100,7 @@ export function CanDetailPage() {
   return (
     <Layout title="Can Details" hideNav>
       <Link
-        to="/collection"
+        to={can.is_wishlist ? '/wishlist' : '/collection'}
         className="mb-4 inline-flex items-center gap-1 text-sm text-monster-muted hover:text-white"
       >
         <ArrowLeft size={16} /> Back
@@ -133,45 +133,73 @@ export function CanDetailPage() {
           <MetaRow label="Barcode" value={can.barcode} />
           <MetaRow label="Volume" value={can.volume} />
           <MetaRow label="Country" value={can.country} />
+          <MetaRow label="Country Variant" value={can.country_variant} />
+          {can.is_wishlist ? (
+            <MetaRow label="Wishlist" value={can.wishlist_status ?? 'wanted'} />
+          ) : null}
           <MetaRow label="Rarity" value={can.rarity} />
           <MetaRow label="Quantity" value={String(can.quantity)} />
           <MetaRow label="Added" value={new Date(can.added_date).toLocaleDateString()} />
         </Card>
 
         <Card className="flex flex-col gap-3">
-          <label className="flex items-center justify-between">
-            <span className="text-sm">Opened</span>
-            <input
-              type="checkbox"
-              checked={can.opened}
-              disabled={saving}
-              onChange={(e) => saveField({ opened: e.target.checked })}
-              className="h-5 w-5 accent-monster-green"
-            />
-          </label>
+          {can.is_wishlist ? (
+            <div className="flex gap-2">
+              {(['wanted', 'missing'] as const).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => saveField({ wishlist_status: status })}
+                  className={`flex-1 rounded-lg border px-2 py-2 text-sm capitalize ${
+                    can.wishlist_status === status
+                      ? 'border-monster-green bg-monster-green/20 text-monster-green'
+                      : 'border-monster-border text-monster-muted'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-          <label className="flex items-center justify-between">
-            <span className="text-sm">Available for trade</span>
-            <input
-              type="checkbox"
-              checked={can.available_for_trade}
-              disabled={saving}
-              onChange={(e) => saveField({ available_for_trade: e.target.checked })}
-              className="h-5 w-5 accent-monster-green"
-            />
-          </label>
+          {!can.is_wishlist ? (
+            <>
+              <label className="flex items-center justify-between">
+                <span className="text-sm">Opened</span>
+                <input
+                  type="checkbox"
+                  checked={can.opened}
+                  disabled={saving}
+                  onChange={(e) => saveField({ opened: e.target.checked })}
+                  className="h-5 w-5 accent-monster-green"
+                />
+              </label>
 
-          <Input
-            label="Purchase Date"
-            type="date"
-            value={purchaseDate}
-            onChange={(e) => setPurchaseDate(e.target.value)}
-            onBlur={() => {
-              if (purchaseDate !== (can.purchase_date ?? '')) {
-                saveField({ purchase_date: purchaseDate || null })
-              }
-            }}
-          />
+              <label className="flex items-center justify-between">
+                <span className="text-sm">Available for trade</span>
+                <input
+                  type="checkbox"
+                  checked={can.available_for_trade}
+                  disabled={saving}
+                  onChange={(e) => saveField({ available_for_trade: e.target.checked })}
+                  className="h-5 w-5 accent-monster-green"
+                />
+              </label>
+
+              <Input
+                label="Purchase Date"
+                type="date"
+                value={purchaseDate}
+                onChange={(e) => setPurchaseDate(e.target.value)}
+                onBlur={() => {
+                  if (purchaseDate !== (can.purchase_date ?? '')) {
+                    saveField({ purchase_date: purchaseDate || null })
+                  }
+                }}
+              />
+            </>
+          ) : null}
 
           <Input
             label="Notes"
