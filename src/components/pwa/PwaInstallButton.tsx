@@ -31,7 +31,7 @@ export function PwaInstallButton() {
         aria-label={`Download ${APP_NAME} app`}
       >
         <Download size={12} />
-        Install
+        Install App
       </button>
 
       <InstallInstructionsModal
