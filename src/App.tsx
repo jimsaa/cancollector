@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { GuestMessagingProvider } from './hooks/useGuestMessaging'
+import { BetaAccessGate } from './components/BetaAccessGate'
 import { InstallPrompt } from './components/pwa/InstallPrompt'
 import { LoadingSpinner } from './components/ui/LoadingSpinner'
 import { DashboardPage } from './pages/DashboardPage'
@@ -131,7 +132,9 @@ export default function App() {
     <AuthProvider>
       <GuestMessagingProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <BetaAccessGate>
+            <AppRoutes />
+          </BetaAccessGate>
         </BrowserRouter>
       </GuestMessagingProvider>
     </AuthProvider>
