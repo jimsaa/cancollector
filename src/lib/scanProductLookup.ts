@@ -4,6 +4,7 @@ import type { ProductLookup } from '../types/can'
 import type { MasterCan } from '../types/masterCan'
 import { fetchActiveMasterCans } from './masterCans'
 import { findMasterByBarcode } from './masterCanMatching'
+import { findBestBarcodelessMasterMatch } from './masterCanProductMatch'
 import {
   getApprovedMasterReferenceImageUrl,
   isApprovedMasterReference,
@@ -14,6 +15,9 @@ export type OffLookupStatus = 'found' | 'not_found' | 'error' | 'skipped'
 
 export interface BarcodeLookupResult {
   master: MasterCan | null
+  /** Barcode-less catalog match when exact barcode not found */
+  possibleMaster: MasterCan | null
+  possibleMasterScore: number | null
   offProduct: ProductLookup | null
   offStatus: OffLookupStatus
   /** Primary data source used for product fields */
@@ -70,15 +74,20 @@ export function buildScanFormFields(
   }
 }
 
-async function lookupMasterCan(barcode: string): Promise<MasterCan | null> {
+async function lookupMasterCan(barcode: string): Promise<{
+  exact: MasterCan | null
+  possible: MasterCan | null
+  possibleScore: number | null
+}> {
   try {
     const masters = await fetchActiveMasterCans('all')
-    return findMasterByBarcode(masters, barcode)
+    const exact = findMasterByBarcode(masters, barcode)
+    return { exact, possible: null, possibleScore: null }
   } catch (err) {
     if (import.meta.env.DEV) {
       console.error('[scan] Master database lookup failed — continuing with Open Food Facts', err)
     }
-    return null
+    return { exact: null, possible: null, possibleScore: null }
   }
 }
 
@@ -107,12 +116,35 @@ export async function lookupBarcodeProduct(
 ): Promise<BarcodeLookupResult> {
   const trimmed = barcode.trim()
 
-  const [rawMaster, off] = await Promise.all([
+  const [masterLookup, off] = await Promise.all([
     lookupMasterCan(trimmed),
     lookupOpenFoodFacts(trimmed),
   ])
 
-  const master = isCompleteMasterMatch(rawMaster) ? rawMaster : null
+  let rawMaster = masterLookup.exact
+  let possibleMaster = masterLookup.possible
+  let possibleMasterScore = masterLookup.possibleScore
+
+  if (!rawMaster) {
+    try {
+      const masters = await fetchActiveMasterCans('all')
+      const productName = off.product?.name ?? ''
+      const fuzzy = findBestBarcodelessMasterMatch(masters, {
+        product_name: productName,
+        brand: off.product?.brand,
+        flavor: off.product?.flavor,
+      })
+      if (fuzzy) {
+        possibleMaster = fuzzy.master
+        possibleMasterScore = fuzzy.score
+        rawMaster = fuzzy.master
+      }
+    } catch {
+      // Non-blocking fuzzy match
+    }
+  }
+
+  const master = isCompleteMasterMatch(rawMaster) && masterLookup.exact ? rawMaster : null
   const offProduct = off.product
   const offStatus: OffLookupStatus = master ? 'skipped' : off.status
 
@@ -129,7 +161,8 @@ export async function lookupBarcodeProduct(
   if (import.meta.env.DEV) {
     console.info('[scan] Barcode lookup', {
       barcode: trimmed,
-      masterMatch: Boolean(rawMaster),
+      masterMatch: Boolean(masterLookup.exact),
+      possibleMaster: possibleMaster?.product_name ?? null,
       masterComplete: Boolean(master),
       offStatus,
       name: form.name || null,
@@ -138,5 +171,13 @@ export async function lookupBarcodeProduct(
     })
   }
 
-  return { master, offProduct, offStatus, primarySource, form }
+  return {
+    master,
+    possibleMaster,
+    possibleMasterScore,
+    offProduct,
+    offStatus,
+    primarySource,
+    form,
+  }
 }

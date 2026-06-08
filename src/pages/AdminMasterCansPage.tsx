@@ -21,9 +21,12 @@ import {
   approvePendingSuggestion,
   buildApproveInputFromSuggestion,
   fetchPendingSuggestions,
+  findPossibleMasterMatchesForSuggestion,
+  linkPendingSuggestionToMaster,
   rejectPendingSuggestion,
   type ApproveSuggestionInput,
 } from '../lib/pendingSuggestions'
+import type { MasterCanProductMatch } from '../lib/masterCanProductMatch'
 import { formatApproveSuggestionMessage } from '../lib/approveSuggestionMessages'
 import { formatMasterCanError } from '../lib/masterCanSupabase'
 import type { PendingCanSuggestion } from '../types/pendingSuggestion'
@@ -38,6 +41,8 @@ export function AdminMasterCansPage() {
   const [actionId, setActionId] = useState<string | null>(null)
   const [editing, setEditing] = useState<PendingCanSuggestion | null>(null)
   const [form, setForm] = useState<ApproveSuggestionInput | null>(null)
+  const [possibleMatches, setPossibleMatches] = useState<MasterCanProductMatch[]>([])
+  const [matchesLoading, setMatchesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -80,6 +85,33 @@ export function AdminMasterCansPage() {
   const openEdit = (suggestion: PendingCanSuggestion) => {
     setEditing(suggestion)
     setForm(buildApproveInputFromSuggestion(suggestion))
+    setPossibleMatches([])
+    setMatchesLoading(true)
+    void findPossibleMasterMatchesForSuggestion(suggestion)
+      .then(setPossibleMatches)
+      .catch(() => setPossibleMatches([]))
+      .finally(() => setMatchesLoading(false))
+  }
+
+  const handleLinkToMatch = async (masterId: string) => {
+    if (!editing) return
+    setActionId(editing.id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const result = await linkPendingSuggestionToMaster(editing, masterId, 'user_scan')
+      setSuccess(
+        `Barcode linked to existing master can. ${result.linkedCans} user can${result.linkedCans === 1 ? '' : 's'} updated.`,
+      )
+      setEditing(null)
+      setForm(null)
+      setPossibleMatches([])
+      await load()
+    } catch (err) {
+      setError(formatMasterCanError(err, 'Link failed'))
+    } finally {
+      setActionId(null)
+    }
   }
 
   const handleApprove = async () => {
@@ -239,6 +271,9 @@ export function AdminMasterCansPage() {
                       Source: {suggestion.source} ·{' '}
                       {new Date(suggestion.created_at).toLocaleString()}
                     </p>
+                    {suggestion.barcode ? (
+                      <SuggestionPossibleMatchHint suggestion={suggestion} />
+                    ) : null}
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
@@ -282,19 +317,75 @@ export function AdminMasterCansPage() {
           onClose={() => {
             setEditing(null)
             setForm(null)
+            setPossibleMatches([])
           }}
           onApprove={() => void handleApprove()}
         >
           {form ? (
-            <AdminApproveFormFields
-              form={form}
-              onChange={setForm}
-              showSourceUrl={false}
-              imageSourceNote="Official product images are external references. Do not re-host unless you have permission."
-            />
+            <>
+              {matchesLoading ? (
+                <p className="text-xs text-monster-muted">Checking for catalog matches...</p>
+              ) : null}
+              {!matchesLoading && possibleMatches.length > 0 ? (
+                <Card className="border-yellow-600/40 bg-yellow-900/20 p-3">
+                  <p className="text-sm font-semibold text-yellow-200">Possible match found</p>
+                  <p className="mt-1 text-xs text-yellow-100/80">
+                    This scan may belong to an official catalog product without a barcode yet.
+                  </p>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {possibleMatches.map((match) => (
+                      <div
+                        key={match.master.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-yellow-600/30 bg-black/20 p-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-white">{match.master.product_name}</p>
+                          <p className="text-[10px] text-monster-muted">
+                            {match.reason} · {Math.round(match.score * 100)}% match
+                          </p>
+                        </div>
+                        <Button
+                          className="shrink-0 py-1.5 text-xs"
+                          loading={Boolean(editing && actionId === editing.id)}
+                          onClick={() => void handleLinkToMatch(match.master.id)}
+                        >
+                          Link barcode
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
+              <AdminApproveFormFields
+                form={form}
+                onChange={setForm}
+                showSourceUrl={false}
+                imageSourceNote="Link to an existing catalog product above, or approve as a new master can below."
+              />
+            </>
           ) : null}
         </AdminApproveModal>
       </div>
     </Layout>
   )
+}
+
+function SuggestionPossibleMatchHint({ suggestion }: { suggestion: PendingCanSuggestion }) {
+  const [label, setLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void findPossibleMasterMatchesForSuggestion(suggestion)
+      .then((matches) => {
+        if (!active || !matches.length) return
+        setLabel(matches[0].master.product_name)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [suggestion])
+
+  if (!label) return null
+  return <p className="mt-1 text-xs text-yellow-400">Possible catalog match: {label}</p>
 }

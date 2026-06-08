@@ -22,6 +22,8 @@ export const EXTENDED_MASTER_CAN_COLUMNS = [
 
   'variant_name',
 
+  'barcode_source',
+
 ] as const
 
 

@@ -1,5 +1,5 @@
 import type { OfficialProductImportRecord } from '../types/officialProductImport'
-import type { MasterCan } from '../types/masterCan'
+import type { MasterBarcodeSource, MasterCan } from '../types/masterCan'
 import type { MasterImageSource } from '../types/masterImageSource'
 import type {
   PendingCanSuggestion,
@@ -14,12 +14,18 @@ import {
   updateLocalPendingSuggestion,
 } from './localPendingSuggestions'
 import {
+  attachBarcodeToLocalMasterCan,
   findLocalExistingMaster,
   upsertLocalApprovedMasterCan,
   findLocalMasterByBarcode,
 } from './localMasterCans'
 import { linkUserCansToMasterByBarcode } from './masterCanLink'
 import { findMasterByBarcode } from './masterCanMatching'
+import {
+  findBarcodelessMasterMatches,
+  pickMasterByProductIdentity,
+  type MasterCanProductMatch,
+} from './masterCanProductMatch'
 import { fetchActiveMasterCans } from './masterCans'
 import { useGuestStorage } from './guestStorage'
 import { isConfigured } from './mode'
@@ -238,9 +244,11 @@ async function findCloudMasterByBarcode(barcode: string): Promise<MasterCan | nu
   return data ? normalizeMasterCan(data as MasterCan) : null
 }
 
-async function findCloudMasterByNameBrand(
+async function findCloudMasterByProductIdentity(
   brand: string,
   productName: string,
+  flavor?: string | null,
+  category?: string | null,
 ): Promise<MasterCan | null> {
   const client = requireClient()
   const { data } = await client
@@ -248,9 +256,15 @@ async function findCloudMasterByNameBrand(
     .select('*')
     .ilike('brand', brand.trim())
     .ilike('product_name', productName.trim())
-    .limit(1)
-  const row = data?.[0]
-  return row ? normalizeMasterCan(row as MasterCan) : null
+    .limit(5)
+
+  const candidates = (data ?? []).map((row) => normalizeMasterCan(row as MasterCan))
+  return pickMasterByProductIdentity(candidates, {
+    brand,
+    product_name: productName,
+    flavor,
+    category,
+  })
 }
 
 function sanitizeMasterCanWritePayload(payload: Record<string, unknown>): Record<string, unknown> {
@@ -271,13 +285,6 @@ async function findExistingCloudMasterCan(
   master: ApproveSuggestionInput,
   sourceUrl: string | null,
 ): Promise<MasterCan | null> {
-  const barcode = normalizeMasterBarcode(master.barcode)
-
-  if (barcode) {
-    const byBarcode = await findCloudMasterByBarcode(barcode)
-    if (byBarcode) return byBarcode
-  }
-
   if (sourceUrl) {
     const byUrl = await findCloudMasterBySourceUrl(sourceUrl)
     if (byUrl) return byUrl
@@ -286,7 +293,18 @@ async function findExistingCloudMasterCan(
   const brand = master.brand?.trim()
   const productName = master.product_name?.trim()
   if (brand && productName) {
-    return findCloudMasterByNameBrand(brand, productName)
+    const byIdentity = await findCloudMasterByProductIdentity(
+      brand,
+      productName,
+      master.flavor,
+      master.category,
+    )
+    if (byIdentity) return byIdentity
+  }
+
+  const barcode = normalizeMasterBarcode(master.barcode)
+  if (barcode) {
+    return findCloudMasterByBarcode(barcode)
   }
 
   return null
@@ -381,26 +399,14 @@ async function resolveDuplicateMasterCan(
   sourceUrl: string | null,
   err?: unknown,
 ): Promise<MasterCan | null> {
-  let existing = await findExistingCloudMasterCan(master, sourceUrl)
+  const existing = await findExistingCloudMasterCan(master, sourceUrl)
   if (existing) return existing
 
-  const barcode = normalizeMasterBarcode(master.barcode)
-  if (barcode || isBarcodeDuplicateError(err)) {
+  if (isBarcodeDuplicateError(err)) {
+    const barcode = normalizeMasterBarcode(master.barcode)
     if (barcode) {
-      existing = await findCloudMasterByBarcode(barcode)
-      if (existing) return existing
+      return findCloudMasterByBarcode(barcode)
     }
-  }
-
-  if (sourceUrl) {
-    existing = await findCloudMasterBySourceUrl(sourceUrl)
-    if (existing) return existing
-  }
-
-  const brand = master.brand?.trim()
-  const productName = master.product_name?.trim()
-  if (brand && productName) {
-    return findCloudMasterByNameBrand(brand, productName)
   }
 
   return null
@@ -555,6 +561,8 @@ export async function approvePendingSuggestion(
       sourceUrl,
       brand: master.brand,
       product_name: master.product_name,
+      flavor: master.flavor,
+      category: master.category,
     })?.id
 
     approvedMaster = await upsertLocalApprovedMasterCan({
@@ -567,6 +575,7 @@ export async function approvePendingSuggestion(
       country: master.country ?? null,
       category: master.category ?? null,
       barcode: barcode || null,
+      barcode_source: barcode ? 'user_scan' : null,
       ...referenceFields,
       source: normalizeMasterSource(master.source ?? suggestion.source),
       source_url: sourceUrl,
@@ -622,4 +631,77 @@ export function inferSuggestionSource(options: {
   if (options.hasUserImage) return 'user_scan'
   if (options.offFound) return 'open_food_facts'
   return 'manual'
+}
+
+export async function findPossibleMasterMatchesForSuggestion(
+  suggestion: PendingCanSuggestion,
+): Promise<MasterCanProductMatch[]> {
+  const productName = suggestion.product_name?.trim()
+  if (!productName) return []
+
+  const masters = await fetchActiveMasterCans('all')
+  return findBarcodelessMasterMatches(masters, {
+    product_name: productName,
+    brand: suggestion.brand,
+    flavor: suggestion.flavor,
+    category: suggestion.category,
+    variant_name: suggestion.variant_name,
+  })
+}
+
+export async function attachBarcodeToMasterCan(
+  masterId: string,
+  barcode: string,
+  barcodeSource: MasterBarcodeSource,
+): Promise<MasterCan> {
+  const normalized = normalizeMasterBarcode(barcode)
+  if (!normalized) throw new Error('Barcode is required')
+
+  if (useLocalPendingStore()) {
+    return attachBarcodeToLocalMasterCan(masterId, normalized, barcodeSource)
+  }
+
+  const client = requireClient()
+  const existing = await findCloudMasterByBarcode(normalized)
+  if (existing && existing.id !== masterId) {
+    throw new Error(`Barcode already linked to ${existing.product_name}`)
+  }
+
+  const { data, error } = await client
+    .from('master_cans')
+    .update({ barcode: normalized, barcode_source: barcodeSource })
+    .eq('id', masterId)
+    .select()
+    .single()
+
+  if (error) throw new Error(formatMasterCanError(error, 'Failed to attach barcode'))
+
+  const master = normalizeMasterCan(data as MasterCan)
+  await linkUserCansToMasterByBarcode(normalized, master.id)
+  return master
+}
+
+export async function linkPendingSuggestionToMaster(
+  suggestion: PendingCanSuggestion,
+  masterId: string,
+  barcodeSource: MasterBarcodeSource = 'user_scan',
+): Promise<ApproveSuggestionResult> {
+  const barcode = normalizeMasterBarcode(suggestion.barcode)
+  if (!barcode) throw new Error('Suggestion has no barcode to link')
+
+  const updated = await attachBarcodeToMasterCan(masterId, barcode, barcodeSource)
+
+  if (useLocalPendingStore()) {
+    updateLocalPendingSuggestion(suggestion.id, { status: 'approved' })
+  } else {
+    const client = requireClient()
+    const { error } = await client
+      .from('pending_can_suggestions')
+      .update({ status: 'approved' })
+      .eq('id', suggestion.id)
+    if (error) throw error
+  }
+
+  const linkedCans = await linkUserCansToMasterByBarcode(barcode, updated.id)
+  return { master: updated, linkedCans, updatedExisting: true }
 }

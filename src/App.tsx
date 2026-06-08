@@ -24,6 +24,7 @@ import { StatisticsPage } from './pages/StatisticsPage'
 import { BackupPage } from './pages/BackupPage'
 import { TradeListingDetailPage } from './pages/TradeListingDetailPage'
 import { AdminMasterCansPage } from './pages/AdminMasterCansPage'
+import { AdminMasterCatalogPage } from './pages/AdminMasterCatalogPage'
 import { AdminImportsPage } from './pages/AdminImportsPage'
 import { AdminMonsterProductsImportPage } from './pages/AdminMonsterProductsImportPage'
 import { AdminImageReviewPage } from './pages/AdminImageReviewPage'
@@ -106,6 +107,7 @@ function AppRoutes() {
         <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} />
         <Route path="/feedback" element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />
         <Route path="/admin/master-cans" element={<AdminMasterCansPage />} />
+        <Route path="/admin/master-catalog" element={<AdminMasterCatalogPage />} />
         <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
         <Route path="/admin/image-review" element={<AdminImageReviewPage />} />
         <Route path="/admin/imports" element={<AdminImportsPage />} />

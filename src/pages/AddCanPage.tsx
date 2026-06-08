@@ -47,6 +47,8 @@ export function AddCanPage() {
   const [manualBarcode, setManualBarcode] = useState('')
   const [form, setForm] = useState<CanFormData>(emptyFormData())
   const [matchedMaster, setMatchedMaster] = useState<MasterCan | null>(null)
+  const [possibleMaster, setPossibleMaster] = useState<MasterCan | null>(null)
+  const [possibleMasterScore, setPossibleMasterScore] = useState<number | null>(null)
   const [duplicate, setDuplicate] = useState<Can | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [offStatus, setOffStatus] = useState<OffLookupStatus>('skipped')
@@ -66,6 +68,8 @@ export function AddCanPage() {
     setCameraError(null)
     setForm(emptyFormData())
     setMatchedMaster(null)
+    setPossibleMaster(null)
+    setPossibleMasterScore(null)
     setDuplicate(null)
     setManualBarcode('')
     setOffStatus('skipped')
@@ -98,6 +102,8 @@ export function AddCanPage() {
         const result = await lookupBarcodeProduct(barcode, emptyFormData)
 
         setMatchedMaster(result.master)
+        setPossibleMaster(result.possibleMaster)
+        setPossibleMasterScore(result.possibleMasterScore)
         setForm(result.form)
         setOffStatus(result.offStatus)
         setPrimarySource(result.primarySource)
@@ -116,6 +122,8 @@ export function AddCanPage() {
         const nextForm = { ...emptyFormData(), barcode }
         setForm(nextForm)
         setMatchedMaster(null)
+        setPossibleMaster(null)
+        setPossibleMasterScore(null)
         setOffStatus('error')
         setPrimarySource('none')
 
@@ -223,6 +231,8 @@ export function AddCanPage() {
         await maybeCreatePendingSuggestion({
           barcode: insert.barcode,
           product_name: insert.name,
+          brand: insert.brand,
+          flavor: insert.flavor,
           image_url: imageUrl,
           source: inferSuggestionSource({
             offFound: offStatus === 'found',
@@ -302,6 +312,8 @@ export function AddCanPage() {
             offStatus={offStatus}
             primarySource={primarySource}
             matchedMaster={matchedMaster}
+            possibleMaster={possibleMaster}
+            possibleMasterScore={possibleMasterScore}
             onBack={resetToScan}
             onContinue={() => setStep('edit')}
             onEdit={() => setStep('edit')}

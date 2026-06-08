@@ -3,6 +3,7 @@ import type { Can, CanInsert } from '../types/can'
 import type { MasterCan, MasterCanWithStatus } from '../types/masterCan'
 
 import { getDefaultCollectionSource, resolveCanImage } from './canImage'
+import { findBestBarcodelessMasterMatch } from './masterCanProductMatch'
 import { normalizeImageSource } from '../types/imageSource'
 
 import { getApprovedMasterReferenceImageUrl } from './masterReferenceImage'
@@ -180,7 +181,16 @@ export function attachMasterCanLink(
 
   if (insert.master_can_id || !insert.barcode) return insert
 
-  const master = findMasterByBarcode(masters, insert.barcode)
+  let master = findMasterByBarcode(masters, insert.barcode)
+
+  if (!master && insert.name) {
+    const fuzzy = findBestBarcodelessMasterMatch(masters, {
+      product_name: insert.name,
+      brand: insert.brand,
+      flavor: insert.flavor,
+    })
+    master = fuzzy?.master ?? null
+  }
 
   if (!master) return insert
 
