@@ -4,7 +4,7 @@ import { formatSaveCanError, logSaveCanError } from '../lib/canSupabase'
 import { Layout } from '../components/layout/Layout'
 import { DuplicateCanScreen } from '../components/cans/DuplicateCanScreen'
 import {
-  applyAutoImageToForm,
+  applyScanImageToForm,
   emptyFormData,
   formDataToInsert,
   type CanFormData,
@@ -148,7 +148,7 @@ export function AddCanPage() {
   const handleImageFile = async (file: File) => {
     try {
       const url = await imageUpload.processFile(file)
-      setForm((prev) => ({ ...prev, user_image_url: url, image_source: 'user' as const }))
+      setForm((prev) => ({ ...prev, user_image_url: url, image_source: 'user_uploaded' as const }))
     } catch {
       // error shown via imageUpload.uploadError
     }
@@ -156,7 +156,7 @@ export function AddCanPage() {
 
   const handleImageRemove = () => {
     imageUpload.clearUploadState()
-    setForm((prev) => applyAutoImageToForm({ ...prev, user_image_url: '' }))
+    setForm((prev) => applyScanImageToForm({ ...prev, user_image_url: '' }))
   }
 
   const handleSave = async () => {
@@ -195,7 +195,7 @@ export function AddCanPage() {
               getSaveImageFields({
                 ...form,
                 user_image_url: cloudUrl,
-                image_source: 'user',
+                image_source: 'user_uploaded',
               }),
             )
           }
@@ -210,23 +210,23 @@ export function AddCanPage() {
         !useGuestStorage() &&
         form.user_image_url &&
         !form.user_image_url.startsWith('data:') &&
-        form.image_source === 'user'
+        form.image_source === 'user_uploaded'
       ) {
         await update(created.id, getSaveImageFields(form))
       }
 
       if (!insert.master_can_id && insert.barcode) {
         const imageUrl =
-          form.image_source === 'user'
+          form.image_source === 'user_uploaded'
             ? form.user_image_url
-            : form.master_image_url || form.off_image_url || null
+            : form.master_image_url || null
         await maybeCreatePendingSuggestion({
           barcode: insert.barcode,
           product_name: insert.name,
           image_url: imageUrl,
           source: inferSuggestionSource({
             offFound: offStatus === 'found',
-            hasUserImage: form.image_source === 'user' && Boolean(form.user_image_url),
+            hasUserImage: form.image_source === 'user_uploaded' && Boolean(form.user_image_url),
           }),
           submitted_by: storageUserId,
         }).catch(() => undefined)

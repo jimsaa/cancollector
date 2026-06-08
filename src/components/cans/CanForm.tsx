@@ -6,7 +6,7 @@ import {
   applyTradeStatusToInsert,
   normalizeCanCollectorFields,
 } from '../../lib/canCollectorFields'
-import { getSaveImageFields, resolveAutoImage } from '../../lib/canImage'
+import { getSaveImageFields, resolveScanDefaultImage } from '../../lib/canImage'
 import { resolveWanted } from '../../lib/tradeFields'
 import { CanCollectorFields } from './CanCollectorFields'
 import { CanImageUpload } from './CanImageUpload'
@@ -58,7 +58,7 @@ export const emptyFormData = (wishlist = false): CanFormData => ({
   user_image_url: '',
   master_image_url: '',
   off_image_url: '',
-  image_source: 'placeholder',
+  image_source: 'default_placeholder',
   opened: false,
   opening_status: 'sealed',
   purchase_date: '',
@@ -159,13 +159,19 @@ export function formDataToInsert(data: CanFormData): CanInsert {
   }
 }
 
-export function applyAutoImageToForm(data: CanFormData): CanFormData {
-  const resolved = resolveAutoImage({
+/** After barcode scan — never defaults to Open Food Facts for collection image. */
+export function applyScanImageToForm(data: CanFormData): CanFormData {
+  const resolved = resolveScanDefaultImage({
     user_image_url: data.user_image_url,
     master_image_url: data.master_image_url,
     off_image_url: data.off_image_url,
   })
   return { ...data, image_source: resolved.image_source }
+}
+
+/** @deprecated Use applyScanImageToForm */
+export function applyAutoImageToForm(data: CanFormData): CanFormData {
+  return applyScanImageToForm(data)
 }
 
 interface CanFormFieldsProps {
@@ -206,7 +212,7 @@ export function CanFormFields({
           data={data}
           onChange={(patch) => onChange({ ...data, ...patch })}
           onFileSelect={onImageFileSelect}
-          onRemove={onImageRemove ?? (() => onChange({ ...data, user_image_url: '', image_source: 'placeholder' }))}
+          onRemove={onImageRemove ?? (() => onChange({ ...data, user_image_url: '', image_source: 'default_placeholder' }))}
           uploading={imageUploading}
           uploadError={imageUploadError}
           sizeWarning={imageSizeWarning}

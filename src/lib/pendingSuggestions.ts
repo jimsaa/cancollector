@@ -20,6 +20,7 @@ import { fetchActiveMasterCans } from './masterCans'
 import { useGuestStorage } from './guestStorage'
 import { isConfigured } from './mode'
 import { normalizeMasterCan } from './masterCanNormalize'
+import { buildMasterReferencePayload, toMasterCanReferenceFields } from './masterReferencePayload'
 import { generateId } from './id'
 import { supabase } from './supabase'
 
@@ -190,20 +191,23 @@ async function findCloudMasterBySourceUrl(sourceUrl: string): Promise<MasterCan 
   return data ? normalizeMasterCan(data as MasterCan) : null
 }
 
-async function upsertCloudMasterCan(master: ApproveSuggestionInput): Promise<MasterCan> {
+async function upsertCloudMasterCan(
+  master: ApproveSuggestionInput,
+  adminApproved = true,
+): Promise<MasterCan> {
   const client = requireClient()
   const barcode = master.barcode?.trim() ?? null
   const sourceUrl = master.source_url?.trim() ?? null
 
-  const reference_image_url =
-    master.reference_image_url?.trim() || master.image_url?.trim() || null
-  const image_source: MasterImageSource =
-    master.image_source ??
-    (master.source === 'official_site'
-      ? 'official_site'
-      : reference_image_url
-        ? 'manual'
-        : 'placeholder')
+  const referenceFields = toMasterCanReferenceFields(
+    buildMasterReferencePayload({
+      reference_image_url: master.reference_image_url,
+      image_url: master.image_url,
+      image_source: master.image_source,
+      source: master.source,
+      adminApproved,
+    }),
+  )
 
   const payload = {
     brand: master.brand,
@@ -214,9 +218,7 @@ async function upsertCloudMasterCan(master: ApproveSuggestionInput): Promise<Mas
     country: master.country ?? null,
     category: master.category ?? null,
     barcode,
-    reference_image_url,
-    image_url: reference_image_url,
-    image_source,
+    ...referenceFields,
     source: master.source ?? null,
     source_url: sourceUrl,
     rarity: master.rarity ?? 'unknown',
@@ -276,6 +278,16 @@ export async function approvePendingSuggestion(
   const barcode = master.barcode?.trim() ?? ''
 
   if (useLocalPendingStore()) {
+    const referenceFields = toMasterCanReferenceFields(
+      buildMasterReferencePayload({
+        reference_image_url: master.reference_image_url ?? suggestion.image_url,
+        image_url: master.image_url,
+        image_source: master.image_source,
+        source: master.source ?? suggestion.source,
+        adminApproved: true,
+      }),
+    )
+
     approvedMaster = await upsertLocalApprovedMasterCan({
       id: generateId(),
       brand: master.brand,
@@ -286,12 +298,7 @@ export async function approvePendingSuggestion(
       country: master.country ?? null,
       category: master.category ?? null,
       barcode: barcode || null,
-      reference_image_url:
-        master.reference_image_url?.trim() || master.image_url?.trim() || null,
-      image_url: master.reference_image_url?.trim() || master.image_url?.trim() || null,
-      image_source:
-        master.image_source ??
-        (suggestion.source === 'official_site' ? 'official_site' : null),
+      ...referenceFields,
       source: master.source ?? suggestion.source ?? null,
       source_url: master.source_url ?? suggestion.source_url ?? suggestion.product_page_url ?? null,
       rarity: master.rarity ?? 'unknown',

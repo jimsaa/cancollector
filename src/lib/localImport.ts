@@ -1,5 +1,5 @@
 import type { Can, CanInsert, Rarity, WishlistStatus } from '../types/can'
-import type { ImageSource } from '../types/imageSource'
+import { normalizeImageSource, type ImageSource } from '../types/imageSource'
 import { createCan, fetchCans, updateCan } from './cans'
 import { findDuplicateCan, normalizeKey } from './duplicates'
 import { discoverGuestCans } from './localCanDiscovery'
@@ -11,7 +11,6 @@ const IMPORT_STATUS_KEY = 'cancollector-import-status'
 
 const RARITIES: Rarity[] = ['common', 'uncommon', 'rare', 'unknown']
 const WISHLIST_STATUSES: WishlistStatus[] = ['wanted', 'missing']
-const IMAGE_SOURCES: ImageSource[] = ['user', 'master_database', 'open_food_facts', 'placeholder']
 
 export type ImportStatus = 'pending' | 'completed' | 'skipped'
 
@@ -145,7 +144,7 @@ function coerceWishlistStatus(value: unknown): WishlistStatus | null {
 }
 
 function coerceImageSource(value: unknown): ImageSource {
-  return IMAGE_SOURCES.includes(value as ImageSource) ? (value as ImageSource) : 'placeholder'
+  return normalizeImageSource(typeof value === 'string' ? value : null)
 }
 
 /** Validate a local can before cloud import. Returns error message or null if OK. */
@@ -175,8 +174,8 @@ export function mapLocalCanToCloudInsert(
   const offImageUrl = sanitizeImageUrl(local.off_image_url, 'off_image_url', warnings)
 
   let imageSource = coerceImageSource(local.image_source)
-  if (!imageUrl && !userImageUrl && imageSource === 'user') {
-    imageSource = 'placeholder'
+  if (!imageUrl && !userImageUrl && imageSource === 'user_uploaded') {
+    imageSource = 'default_placeholder'
   }
 
   const row: CanInsert = {
@@ -243,7 +242,7 @@ function toCoreCanInsert(full: CanInsert): CanInsert {
     country: full.country,
     country_variant: full.country_variant,
     image_url: full.image_url,
-    image_source: 'placeholder',
+    image_source: 'default_placeholder',
     user_image_url: null,
     master_image_url: null,
     off_image_url: null,

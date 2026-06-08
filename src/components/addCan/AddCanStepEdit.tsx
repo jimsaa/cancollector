@@ -48,7 +48,7 @@ export function AddCanStepEdit({
           uploading={imageUploading}
           uploadError={imageUploadError}
           sizeWarning={imageSizeWarning}
-          productImageButtonLabel="Use Product Image"
+          wizardMode
         />
       </Card>
 

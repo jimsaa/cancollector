@@ -6,6 +6,7 @@ import { Logo } from '../brand/Logo'
 
 import { BottomNav } from './BottomNav'
 
+import { PwaInstallButton } from '../pwa/PwaInstallButton'
 import { GuestModeBanner } from './GuestModeBanner'
 
 import { APP_NAME, APP_TAGLINE } from '../../constants/branding'
@@ -71,6 +72,7 @@ export function Layout({ children, title, hideNav }: LayoutProps) {
           </Link>
 
           <div className="flex shrink-0 items-center gap-2">
+            <PwaInstallButton />
 
             {isCloudSynced && displayLabel ? (
 

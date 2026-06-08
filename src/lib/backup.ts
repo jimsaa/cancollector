@@ -72,7 +72,7 @@ function normalizeImportedCan(raw: Partial<Can>, userId: string): Can {
     country: raw.country ?? null,
     country_variant: raw.country_variant ?? null,
     image_url: raw.image_url ?? null,
-    image_source: raw.image_source ?? 'placeholder',
+    image_source: raw.image_source ?? 'default_placeholder',
     user_image_url: raw.user_image_url ?? null,
     master_image_url: raw.master_image_url ?? null,
     off_image_url: raw.off_image_url ?? null,

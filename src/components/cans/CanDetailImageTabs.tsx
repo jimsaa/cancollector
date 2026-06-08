@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import type { CanFormData } from './CanForm'
 import {
-  getCollectionDisplayImageUrl,
   getReferenceImageUrl,
   getUserCanImageUrl,
   PLACEHOLDER_CAN_IMAGE,
@@ -36,13 +35,10 @@ export function CanDetailImageTabs({
 }: CanDetailImageTabsProps) {
   const [tab, setTab] = useState<'reference' | 'user'>('reference')
 
-  const referenceUrl = getCollectionDisplayImageUrl({
-    master_image_url: data.master_image_url,
-    off_image_url: data.off_image_url,
-  })
+  const referenceUrl =
+    getReferenceImageUrl({ master_image_url: data.master_image_url }) ?? PLACEHOLDER_CAN_IMAGE
   const hasReference = Boolean(getReferenceImageUrl({
     master_image_url: data.master_image_url,
-    off_image_url: data.off_image_url,
   }))
   const hasUserPhoto = Boolean(getUserCanImageUrl({ user_image_url: data.user_image_url }))
 

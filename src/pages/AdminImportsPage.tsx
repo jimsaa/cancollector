@@ -194,6 +194,12 @@ export function AdminImportsPage() {
                 Scan queue
               </Button>
             </Link>
+            <Link to="/admin/image-review">
+              <Button variant="secondary" className="py-2 text-xs">
+                <Sparkles size={14} />
+                Image review
+              </Button>
+            </Link>
             {access === 'pin_required' ? (
               <button
                 type="button"

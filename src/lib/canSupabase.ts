@@ -159,7 +159,7 @@ export function toSupabaseCanRow(userId: string, can: CanInsert): Record<string,
 
     image_url: nullIfEmpty(normalized.image_url ?? null),
 
-    image_source: normalized.image_source ?? 'placeholder',
+    image_source: normalized.image_source ?? 'default_placeholder',
 
     user_image_url: nullIfEmpty(normalized.user_image_url ?? null),
 

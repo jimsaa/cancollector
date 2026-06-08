@@ -1,10 +1,13 @@
 import type { CanFormData } from '../components/cans/CanForm'
-import { applyAutoImageToForm } from '../components/cans/CanForm'
+import { applyScanImageToForm } from '../components/cans/CanForm'
 import type { ProductLookup } from '../types/can'
 import type { MasterCan } from '../types/masterCan'
 import { fetchActiveMasterCans } from './masterCans'
 import { findMasterByBarcode } from './masterCanMatching'
-import { getMasterReferenceImageUrl } from './masterReferenceImage'
+import {
+  getApprovedMasterReferenceImageUrl,
+  isApprovedMasterReference,
+} from './masterReferenceImage'
 import { fetchProductByBarcode } from './openFoodFacts'
 
 export type OffLookupStatus = 'found' | 'not_found' | 'error' | 'skipped'
@@ -48,7 +51,10 @@ export function buildScanFormFields(
   | 'master_image_url'
   | 'rarity'
 > {
-  const masterImage = master ? getMasterReferenceImageUrl(master) : ''
+  const masterImage =
+    master && isApprovedMasterReference(master)
+      ? getApprovedMasterReferenceImageUrl(master) ?? ''
+      : ''
 
   return {
     barcode,
@@ -118,7 +124,7 @@ export async function lookupBarcodeProduct(
 
   const base = emptyForm()
   const fields = buildScanFormFields(trimmed, rawMaster, offProduct)
-  const form = applyAutoImageToForm({ ...base, ...fields })
+  const form = applyScanImageToForm({ ...base, ...fields })
 
   if (import.meta.env.DEV) {
     console.info('[scan] Barcode lookup', {

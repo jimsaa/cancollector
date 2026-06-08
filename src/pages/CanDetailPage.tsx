@@ -7,7 +7,7 @@ import { ArrowLeft, Save, Trash2 } from 'lucide-react'
 import { Layout } from '../components/layout/Layout'
 
 import {
-  applyAutoImageToForm,
+  applyScanImageToForm,
   CanFormFields,
   canToFormData,
   formDataToInsert,
@@ -142,7 +142,7 @@ export function CanDetailPage() {
       const imageFields = getSaveImageFields({
         ...form,
         user_image_url: url,
-        image_source: 'user',
+        image_source: 'user_uploaded',
       })
       const updated = await update(can.id, imageFields)
 
@@ -174,7 +174,7 @@ export function CanDetailPage() {
 
     const previousUrl = can.user_image_url
 
-    const nextForm = applyAutoImageToForm({ ...form, user_image_url: '' })
+    const nextForm = applyScanImageToForm({ ...form, user_image_url: '' })
     setForm(nextForm)
 
     try {
@@ -195,7 +195,7 @@ export function CanDetailPage() {
 
       setError(err instanceof Error ? err.message : 'Failed to remove image')
 
-      setForm({ ...form, user_image_url: previousUrl ?? '', image_source: 'user' })
+      setForm({ ...form, user_image_url: previousUrl ?? '', image_source: 'user_uploaded' })
 
     }
 

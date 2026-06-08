@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, Package } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Package } from 'lucide-react'
 import type { CanFormData } from '../cans/CanForm'
 import { formatTradePrice } from '../../lib/canCollectorFields'
 import { getDisplayImageUrl, IMAGE_SOURCE_LABELS } from '../../lib/canImage'
@@ -47,6 +47,14 @@ export function AddCanStepSummary({
         Everything looks good? Save this can to your collection. Nothing is stored until you tap
         Save.
       </p>
+
+      {data.image_source === 'open_food_facts_unverified' ? (
+        <p className="flex items-start gap-2 rounded-xl border border-yellow-600/30 bg-yellow-900/20 p-3 text-xs text-yellow-200">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-yellow-400" />
+          You chose an unverified Open Food Facts image. Consider uploading your own can photo for
+          better collection quality.
+        </p>
+      ) : null}
 
       <Card className="overflow-hidden p-0">
         <div className="flex flex-col items-center gap-3 border-b border-monster-border bg-monster-dark p-4">

@@ -58,7 +58,7 @@ function normalizeDiscoveredCan(raw: Record<string, unknown>): Can {
     country: (raw.country as string | null) ?? null,
     country_variant: (raw.country_variant as string | null) ?? null,
     image_url: (raw.image_url as string | null) ?? null,
-    image_source: (raw.image_source as Can['image_source']) ?? 'placeholder',
+    image_source: (raw.image_source as Can['image_source']) ?? 'default_placeholder',
     user_image_url: (raw.user_image_url as string | null) ?? null,
     master_image_url: (raw.master_image_url as string | null) ?? null,
     off_image_url: (raw.off_image_url as string | null) ?? null,
