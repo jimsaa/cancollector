@@ -11,6 +11,15 @@ function requireClient() {
   return supabase
 }
 
+/** PostgREST PGRST205 — table not deployed yet (e.g. master_cans migration not run). */
+function isMissingMasterCansTableError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const record = err as { code?: string; message?: string }
+  if (record.code === 'PGRST205') return true
+  const msg = (record.message ?? '').toLowerCase()
+  return msg.includes('master_cans') && msg.includes('schema cache')
+}
+
 function filterBrand(masters: MasterCan[], brand: MasterBrandFilter): MasterCan[] {
   if (brand === 'all') return masters
   return masters.filter((m) => m.brand === brand)
@@ -34,7 +43,15 @@ export async function fetchMasterCans(brand: MasterBrandFilter = 'all'): Promise
   }
 
   const { data, error } = await query
-  if (error) throw error
+  if (error) {
+    if (isMissingMasterCansTableError(error)) {
+      if (import.meta.env.DEV) {
+        console.warn('[masterCans] public.master_cans not found — using bundled seed data')
+      }
+      return fetchLocalOrSeedMasters(brand)
+    }
+    throw error
+  }
 
   return ((data ?? []) as MasterCan[]).map((row) => normalizeMasterCan(row))
 }

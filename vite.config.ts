@@ -49,20 +49,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/world\.openfoodfacts\.org\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'openfoodfacts-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24,
-              },
-              networkTimeoutSeconds: 10,
-            },
-          },
-        ],
+        // Product barcode lookups always hit the network (see openFoodFacts.ts cache: 'no-store').
+        runtimeCaching: [],
       },
       devOptions: {
         enabled: true,

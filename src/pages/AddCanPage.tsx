@@ -167,8 +167,13 @@ export function AddCanPage() {
     imageUpload.setUploadError(null)
 
     try {
-      const masters = await fetchActiveMasterCans('all')
-      const insert = attachMasterCanLink(formDataToInsert(form), masters)
+      let insert = formDataToInsert(form)
+      try {
+        const masters = await fetchActiveMasterCans('all')
+        insert = attachMasterCanLink(insert, masters)
+      } catch (linkErr) {
+        logSaveCanError(linkErr, { operation: 'master_can_link', barcode: form.barcode })
+      }
       const created = await add(insert)
 
       if (!insert.is_wishlist) {
