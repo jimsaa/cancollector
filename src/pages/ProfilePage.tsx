@@ -11,6 +11,7 @@ import {
   Share2,
   UserPlus,
 } from 'lucide-react'
+import { APP_NAME } from '../constants/branding'
 import { Layout } from '../components/layout/Layout'
 import { SocialShareButtons } from '../components/profile/SocialShareButtons'
 import { Card } from '../components/ui/Card'
@@ -183,7 +184,7 @@ export function ProfilePage() {
             <SocialShareButtons
               username={profile.username}
               shareTitle={`${publicName}'s Can Collection`}
-              shareDescription={`${publicName}'s energy drink can collection on CanCollector`}
+              shareDescription={`${publicName}'s can collection on ${APP_NAME}`}
             />
           </Card>
         ) : null}

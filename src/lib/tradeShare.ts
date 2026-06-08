@@ -1,3 +1,4 @@
+import { APP_NAME } from '../constants/branding'
 import type { Can } from '../types/can'
 
 export interface TradeSharePayload {
@@ -51,5 +52,5 @@ export function formatTradeShareText(cans: Can[]): string {
     const qty = c.quantity > 1 ? ` (×${c.quantity})` : ''
     return `• ${parts.join(' — ')}${qty}`
   })
-  return `CanCollector Trade List\n\n${lines.join('\n')}\n\n${cans.length} cans available for trade.`
+  return `${APP_NAME} Trade List\n\n${lines.join('\n')}\n\n${cans.length} cans available for trade.`
 }

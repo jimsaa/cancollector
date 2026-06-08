@@ -14,6 +14,7 @@ import { useCans } from '../hooks/useCans'
 import { useMasterCans } from '../hooks/useMasterCans'
 import { computeStats } from '../lib/cans'
 import { computeCollectionProgress } from '../lib/collectionProgress'
+import { APP_NAME } from '../constants/branding'
 import type { MasterBrandFilter } from '../types/masterCan'
 
 interface StatCardProps {
@@ -96,7 +97,7 @@ export function DashboardPage() {
               <EmptyState
                 icon={<Package size={40} />}
                 title="No cans yet"
-                description="Scan your first can to start your CanCollector collection."
+                description={`Scan your first can to start your ${APP_NAME} collection.`}
                 action={
                   <Link to="/add">
                     <Button>Add Your First Can</Button>

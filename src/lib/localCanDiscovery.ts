@@ -1,4 +1,5 @@
 import type { Can } from '../types/can'
+import { normalizeCanCollectorFields } from './canCollectorFields'
 import { normalizeCanImageFields } from './canImage'
 import { generateId } from './id'
 
@@ -44,7 +45,8 @@ function extractCanArray(parsed: unknown): unknown[] {
 }
 
 function normalizeDiscoveredCan(raw: Record<string, unknown>): Can {
-  return normalizeCanImageFields({
+  return normalizeCanCollectorFields(
+    normalizeCanImageFields({
     id: String(raw.id ?? generateId()),
     user_id: String(raw.user_id ?? 'guest'),
     master_can_id: (raw.master_can_id as string | null) ?? null,
@@ -61,16 +63,29 @@ function normalizeDiscoveredCan(raw: Record<string, unknown>): Can {
     master_image_url: (raw.master_image_url as string | null) ?? null,
     off_image_url: (raw.off_image_url as string | null) ?? null,
     opened: Boolean(raw.opened),
+    opening_status: (raw.opening_status as Can['opening_status']) ?? undefined,
     purchase_date: (raw.purchase_date as string | null) ?? null,
+    purchase_country: (raw.purchase_country as string | null) ?? null,
+    purchase_city: (raw.purchase_city as string | null) ?? null,
+    purchase_store: (raw.purchase_store as string | null) ?? null,
     added_date: String(raw.added_date ?? new Date().toISOString()),
+    trade_status: (raw.trade_status as Can['trade_status']) ?? undefined,
     available_for_trade: Boolean(raw.available_for_trade),
+    trade_price: raw.trade_price != null ? Number(raw.trade_price) : null,
+    trade_currency: (raw.trade_currency as Can['trade_currency']) ?? null,
+    trade_note: (raw.trade_note as string | null) ?? null,
+    is_public: Boolean(raw.is_public),
+    show_on_public_profile: Boolean(raw.show_on_public_profile),
+    condition_grade: (raw.condition_grade as Can['condition_grade']) ?? undefined,
+    condition_notes: (raw.condition_notes as string | null) ?? null,
     wanted: Boolean(raw.wanted),
     notes: (raw.notes as string | null) ?? null,
     rarity: (raw.rarity as Can['rarity']) ?? 'unknown',
     quantity: Math.max(1, Number(raw.quantity) || 1),
     is_wishlist: Boolean(raw.is_wishlist),
     wishlist_status: (raw.wishlist_status as Can['wishlist_status']) ?? null,
-  })
+    }),
+  )
 }
 
 function parseCansFromStorageValue(raw: string): Can[] {

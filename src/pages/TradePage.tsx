@@ -15,6 +15,7 @@ import { Button } from '../components/ui/Button'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { TradeListingCard } from '../components/trade/TradeListingCard'
+import { APP_NAME } from '../constants/branding'
 import { useAuth } from '../hooks/useAuth'
 import { useGuestMessaging } from '../hooks/useGuestMessaging'
 import { useCans } from '../hooks/useCans'
@@ -59,7 +60,7 @@ export function TradePage() {
   const shareNative = () => {
     const text = shareText()
     if (navigator.share) {
-      navigator.share({ title: 'CanCollector Trade List', text }).catch(() => {
+      navigator.share({ title: `${APP_NAME} Trade List`, text }).catch(() => {
         navigator.clipboard.writeText(text)
       })
     } else {

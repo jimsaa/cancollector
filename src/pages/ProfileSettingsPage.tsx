@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { ArrowLeft, Crown, Globe, Upload } from 'lucide-react'
+import { APP_NAME } from '../constants/branding'
 import { Layout } from '../components/layout/Layout'
 import { SocialShareButtons } from '../components/profile/SocialShareButtons'
 import { Card } from '../components/ui/Card'
@@ -225,7 +226,7 @@ export function ProfileSettingsPage() {
             <SocialShareButtons
               username={profile.username}
               shareTitle={`${displayName}'s Can Collection`}
-              shareDescription={`Check out ${displayName}'s energy drink can collection on CanCollector`}
+              shareDescription={`Check out ${displayName}'s can collection on ${APP_NAME}`}
             />
           </Card>
         ) : null}

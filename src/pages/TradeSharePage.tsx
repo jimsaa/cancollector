@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/brand/Logo'
+import { APP_NAME } from '../constants/branding'
 import { decodeTradeShareParam } from '../lib/tradeShare'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -23,7 +24,7 @@ export function TradeSharePage() {
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <Logo size="sm" />
           <div>
-            <p className="text-xs uppercase tracking-wide text-monster-green">CanCollector</p>
+            <p className="text-xs uppercase tracking-wide text-monster-green">{APP_NAME}</p>
             <p className="text-sm font-semibold text-white">Shared Trade List</p>
           </div>
         </div>

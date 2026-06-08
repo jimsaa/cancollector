@@ -8,7 +8,7 @@ import { BottomNav } from './BottomNav'
 
 import { GuestModeBanner } from './GuestModeBanner'
 
-import { APP_NAME } from '../../constants/branding'
+import { APP_NAME, APP_TAGLINE } from '../../constants/branding'
 
 import { useGuestMessaging } from '../../hooks/useGuestMessaging'
 
@@ -61,6 +61,8 @@ export function Layout({ children, title, hideNav }: LayoutProps) {
             <div className="min-w-0">
 
               <p className="truncate text-xs font-bold text-monster-green">{APP_NAME}</p>
+
+              <p className="truncate text-[10px] text-monster-muted">{APP_TAGLINE}</p>
 
               <p className="truncate text-sm font-semibold leading-tight text-white">{pageTitle}</p>
 

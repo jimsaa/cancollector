@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/brand/Logo'
-import { APP_NAME } from '../constants/branding'
+import { APP_NAME, APP_TAGLINE } from '../constants/branding'
 import { Layout } from '../components/layout/Layout'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
@@ -105,6 +105,7 @@ export function RegisterPage() {
         <div className="text-center">
           <Logo size="xl" className="mx-auto mb-4" />
           <p className="text-sm font-bold text-monster-green">{APP_NAME}</p>
+          <p className="mt-0.5 text-xs tracking-wide text-monster-muted">{APP_TAGLINE}</p>
           <h1 className="mt-1 text-2xl font-bold text-white">Create free account</h1>
           <p className="mt-1 text-sm text-monster-muted">
             Save your collection online with a free account

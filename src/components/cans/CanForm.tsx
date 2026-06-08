@@ -1,7 +1,14 @@
 import type { Can, CanInsert, Rarity, WishlistStatus } from '../../types/can'
+import type { CanTradeStatus, ConditionGrade, OpeningStatus, TradeCurrency } from '../../types/canCollector'
 import type { ImageSource } from '../../types/imageSource'
+import {
+  applyOpeningStatusToInsert,
+  applyTradeStatusToInsert,
+  normalizeCanCollectorFields,
+} from '../../lib/canCollectorFields'
 import { getSaveImageFields, resolveAutoImage } from '../../lib/canImage'
 import { resolveWanted } from '../../lib/tradeFields'
+import { CanCollectorFields } from './CanCollectorFields'
 import { CanImageUpload } from './CanImageUpload'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
@@ -19,8 +26,20 @@ export interface CanFormData {
   off_image_url: string
   image_source: ImageSource
   opened: boolean
+  opening_status: OpeningStatus
   purchase_date: string
+  purchase_country: string
+  purchase_city: string
+  purchase_store: string
   available_for_trade: boolean
+  trade_status: CanTradeStatus
+  trade_price: string
+  trade_currency: TradeCurrency | ''
+  trade_note: string
+  is_public: boolean
+  show_on_public_profile: boolean
+  condition_grade: ConditionGrade
+  condition_notes: string
   notes: string
   rarity: Rarity
   quantity: number
@@ -41,8 +60,20 @@ export const emptyFormData = (wishlist = false): CanFormData => ({
   off_image_url: '',
   image_source: 'placeholder',
   opened: false,
+  opening_status: 'sealed',
   purchase_date: '',
+  purchase_country: '',
+  purchase_city: '',
+  purchase_store: '',
   available_for_trade: false,
+  trade_status: 'not_for_trade',
+  trade_price: '',
+  trade_currency: '',
+  trade_note: '',
+  is_public: false,
+  show_on_public_profile: false,
+  condition_grade: 'unknown',
+  condition_notes: '',
   notes: '',
   rarity: 'unknown',
   quantity: 1,
@@ -51,26 +82,39 @@ export const emptyFormData = (wishlist = false): CanFormData => ({
 })
 
 export function canToFormData(can: Can): CanFormData {
+  const normalized = normalizeCanCollectorFields(can)
   return {
-    barcode: can.barcode ?? '',
-    name: can.name ?? '',
-    brand: can.brand ?? 'Monster',
-    flavor: can.flavor ?? '',
-    volume: can.volume ?? '',
-    country: can.country ?? '',
-    country_variant: can.country_variant ?? '',
-    user_image_url: can.user_image_url ?? '',
-    master_image_url: can.master_image_url ?? '',
-    off_image_url: can.off_image_url ?? '',
-    image_source: can.image_source,
-    opened: can.opened,
-    purchase_date: can.purchase_date ?? '',
-    available_for_trade: can.available_for_trade,
-    notes: can.notes ?? '',
-    rarity: can.rarity,
-    quantity: can.quantity,
-    is_wishlist: can.is_wishlist,
-    wishlist_status: can.wishlist_status ?? 'wanted',
+    barcode: normalized.barcode ?? '',
+    name: normalized.name ?? '',
+    brand: normalized.brand ?? 'Monster',
+    flavor: normalized.flavor ?? '',
+    volume: normalized.volume ?? '',
+    country: normalized.country ?? '',
+    country_variant: normalized.country_variant ?? '',
+    user_image_url: normalized.user_image_url ?? '',
+    master_image_url: normalized.master_image_url ?? '',
+    off_image_url: normalized.off_image_url ?? '',
+    image_source: normalized.image_source,
+    opened: normalized.opened,
+    opening_status: normalized.opening_status,
+    purchase_date: normalized.purchase_date ?? '',
+    purchase_country: normalized.purchase_country ?? '',
+    purchase_city: normalized.purchase_city ?? '',
+    purchase_store: normalized.purchase_store ?? '',
+    available_for_trade: normalized.available_for_trade,
+    trade_status: normalized.trade_status,
+    trade_price: normalized.trade_price != null ? String(normalized.trade_price) : '',
+    trade_currency: normalized.trade_currency ?? '',
+    trade_note: normalized.trade_note ?? '',
+    is_public: normalized.is_public,
+    show_on_public_profile: normalized.show_on_public_profile,
+    condition_grade: normalized.condition_grade,
+    condition_notes: normalized.condition_notes ?? '',
+    notes: normalized.notes ?? '',
+    rarity: normalized.rarity,
+    quantity: normalized.quantity,
+    is_wishlist: normalized.is_wishlist,
+    wishlist_status: normalized.wishlist_status ?? 'wanted',
   }
 }
 
@@ -82,6 +126,8 @@ export function formDataToInsert(data: CanFormData): CanInsert {
     off_image_url: data.off_image_url,
   })
 
+  const tradePrice = data.trade_price.trim() ? Number(data.trade_price) : null
+
   return {
     barcode: data.barcode || null,
     name: data.name || null,
@@ -91,9 +137,19 @@ export function formDataToInsert(data: CanFormData): CanInsert {
     country: data.country || null,
     country_variant: data.country_variant || null,
     ...imageFields,
-    opened: data.opened,
+    ...applyOpeningStatusToInsert(data.opening_status),
     purchase_date: data.purchase_date || null,
-    available_for_trade: data.available_for_trade,
+    purchase_country: data.purchase_country || null,
+    purchase_city: data.purchase_city || null,
+    purchase_store: data.purchase_store || null,
+    ...applyTradeStatusToInsert(data.trade_status),
+    trade_price: tradePrice != null && Number.isFinite(tradePrice) ? tradePrice : null,
+    trade_currency: data.trade_currency || null,
+    trade_note: data.trade_note || null,
+    is_public: data.is_public,
+    show_on_public_profile: data.show_on_public_profile,
+    condition_grade: data.condition_grade,
+    condition_notes: data.condition_notes || null,
     notes: data.notes || null,
     rarity: data.rarity,
     quantity: data.quantity,
@@ -199,40 +255,7 @@ export function CanFormFields({
             <option value="rare">Rare</option>
           </Select>
 
-          <Input
-            label="Quantity"
-            type="number"
-            min={1}
-            value={data.quantity}
-            onChange={(e) => set('quantity', Math.max(1, parseInt(e.target.value) || 1))}
-          />
-
-          <Input
-            label="Purchase Date"
-            type="date"
-            value={data.purchase_date}
-            onChange={(e) => set('purchase_date', e.target.value)}
-          />
-
-          <label className="flex items-center gap-3 rounded-xl border border-monster-border bg-monster-dark px-4 py-3">
-            <input
-              type="checkbox"
-              checked={data.opened}
-              onChange={(e) => set('opened', e.target.checked)}
-              className="h-4 w-4 accent-monster-green"
-            />
-            <span className="text-sm">Opened</span>
-          </label>
-
-          <label className="flex items-center gap-3 rounded-xl border border-monster-border bg-monster-dark px-4 py-3">
-            <input
-              type="checkbox"
-              checked={data.available_for_trade}
-              onChange={(e) => set('available_for_trade', e.target.checked)}
-              className="h-4 w-4 accent-monster-green"
-            />
-            <span className="text-sm">Available for trade</span>
-          </label>
+          <CanCollectorFields data={data} onChange={onChange} />
         </>
       ) : null}
 

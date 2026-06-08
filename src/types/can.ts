@@ -1,6 +1,8 @@
+import type { CanTradeStatus, ConditionGrade, OpeningStatus, TradeCurrency } from './canCollector'
 import type { ImageSource } from './imageSource'
 
 export type { ImageSource } from './imageSource'
+export type { CanTradeStatus, ConditionGrade, OpeningStatus, TradeCurrency } from './canCollector'
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'unknown'
 export type WishlistStatus = 'wanted' | 'missing'
 
@@ -20,10 +22,24 @@ export interface Can {
   user_image_url: string | null
   master_image_url: string | null
   off_image_url: string | null
+  /** @deprecated Prefer opening_status — kept in sync for filters and legacy data */
   opened: boolean
+  opening_status: OpeningStatus
   purchase_date: string | null
+  purchase_country: string | null
+  purchase_city: string | null
+  purchase_store: string | null
   added_date: string
+  /** @deprecated Prefer trade_status — kept in sync */
   available_for_trade: boolean
+  trade_status: CanTradeStatus
+  trade_price: number | null
+  trade_currency: TradeCurrency | null
+  trade_note: string | null
+  is_public: boolean
+  show_on_public_profile: boolean
+  condition_grade: ConditionGrade
+  condition_notes: string | null
   wanted: boolean
   notes: string | null
   rarity: Rarity

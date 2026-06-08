@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import type { CanFormData } from '../cans/CanForm'
+import { CanCollectorFields } from '../cans/CanCollectorFields'
 import { CanImageUpload } from '../cans/CanImageUpload'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
@@ -35,7 +36,7 @@ export function AddCanStepEdit({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-monster-muted">
-        Review and adjust product details and choose your can image before saving.
+        Review product details, collector metadata, and image before saving.
       </p>
 
       <Card className="p-4">
@@ -77,33 +78,10 @@ export function AddCanStepEdit({
           onChange={(e) => set('country', e.target.value)}
           placeholder="e.g. Sweden"
         />
-        <Input
-          label="Quantity"
-          type="number"
-          min={1}
-          value={data.quantity}
-          onChange={(e) => set('quantity', Math.max(1, parseInt(e.target.value) || 1))}
-        />
+      </Card>
 
-        <label className="flex items-center gap-3 rounded-xl border border-monster-border bg-monster-dark px-4 py-3">
-          <input
-            type="checkbox"
-            checked={data.opened}
-            onChange={(e) => set('opened', e.target.checked)}
-            className="h-4 w-4 accent-monster-green"
-          />
-          <span className="text-sm">Opened</span>
-        </label>
-
-        <label className="flex items-center gap-3 rounded-xl border border-monster-border bg-monster-dark px-4 py-3">
-          <input
-            type="checkbox"
-            checked={data.available_for_trade}
-            onChange={(e) => set('available_for_trade', e.target.checked)}
-            className="h-4 w-4 accent-monster-green"
-          />
-          <span className="text-sm">Available for trade</span>
-        </label>
+      <Card className="p-4">
+        <CanCollectorFields data={data} onChange={onChange} showPrivacyFields={false} />
       </Card>
 
       <Button fullWidth onClick={onContinue} className="py-4" disabled={!data.name.trim()}>

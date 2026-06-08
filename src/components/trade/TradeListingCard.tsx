@@ -1,7 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Image, MapPin, Package, Truck, Video } from 'lucide-react'
 import type { Can } from '../../types/can'
+import { formatTradePrice } from '../../lib/canCollectorFields'
 import { getTradeDisplayImageUrl } from '../../lib/canImage'
+import {
+  CONDITION_GRADE_LABELS,
+  OPENING_STATUS_LABELS,
+} from '../../types/canCollector'
 import type { TradeListing } from '../../types/trade'
 import { Card } from '../ui/Card'
 
@@ -15,6 +20,9 @@ export function TradeListingCard({ listing, can, showPriority }: TradeListingCar
   const imageUrl = can ? getTradeDisplayImageUrl(can) : null
   const location = [listing.location_city, listing.location_country].filter(Boolean).join(', ')
   const extraCount = listing.extra_image_urls.length
+  const tradePrice = can ? formatTradePrice(can.trade_price, can.trade_currency) : null
+  const openingLabel = can ? OPENING_STATUS_LABELS[can.opening_status] : null
+  const conditionLabel = can ? CONDITION_GRADE_LABELS[can.condition_grade] : listing.condition
 
   return (
     <Link to={`/trade/listing/${listing.id}`}>
@@ -41,8 +49,20 @@ export function TradeListingCard({ listing, can, showPriority }: TradeListingCar
             {listing.product_name ?? can?.name ?? 'Unknown can'}
           </p>
           <p className="mt-1 text-[10px] capitalize text-blue-400">
-            {listing.condition} · {listing.trade_status}
+            {conditionLabel} · {listing.trade_status}
           </p>
+          {openingLabel ? (
+            <p className="mt-0.5 text-[10px] text-monster-muted">{openingLabel}</p>
+          ) : null}
+          {can && can.quantity > 1 ? (
+            <p className="mt-0.5 text-[10px] text-monster-green">Qty available: ×{can.quantity}</p>
+          ) : null}
+          {tradePrice ? (
+            <p className="mt-0.5 text-[10px] font-semibold text-white">Asking: {tradePrice}</p>
+          ) : null}
+          {can?.trade_note ? (
+            <p className="mt-0.5 line-clamp-1 text-[10px] text-monster-muted">{can.trade_note}</p>
+          ) : null}
           {location ? (
             <p className="mt-1 flex items-center gap-1 text-[10px] text-monster-muted">
               <MapPin size={10} />

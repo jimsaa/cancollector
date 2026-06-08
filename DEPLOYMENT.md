@@ -1,4 +1,4 @@
-# Deployment Guide — CanCollector
+# Deployment Guide — CanTrove
 
 Deploy the **cancollector** repo to **Vercel** as a Progressive Web App (PWA) with HTTPS camera support for barcode scanning.
 
@@ -92,7 +92,7 @@ Vercel serves every deployment over **HTTPS** automatically — required for mob
 ### iPhone (Safari)
 
 1. Open your Vercel URL in Safari.
-2. **Share** → **Add to Home Screen** (shows as **CanCollector**).
+2. **Share** → **Add to Home Screen** (shows as **CanTrove**).
 
 ---
 

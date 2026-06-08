@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { APP_NAME } from '../../constants/branding'
 import { useGuestMessaging } from '../../context/GuestMessagingContext'
 import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/Button'
@@ -12,7 +13,7 @@ export function GuestModeBanner() {
       <div className="mx-auto flex max-w-lg flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs leading-relaxed text-yellow-100/95">
           <span className="font-semibold text-yellow-50">Guest Mode:</span> Your collection is saved
-          only on this device. Create a free account to protect it.
+          only on this device. Create a free {APP_NAME} account to protect it.
         </p>
         <div className="flex shrink-0 gap-2">
           {isConfigured ? (

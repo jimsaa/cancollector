@@ -14,9 +14,9 @@ export default defineConfig({
         'pwa-512x512.png',
       ],
       manifest: {
-        name: 'CanCollector',
-        short_name: 'CanCollector',
-        description: 'Scan, collect, and track your energy drink cans.',
+        name: 'CanTrove',
+        short_name: 'CanTrove',
+        description: 'Collect, track and trade cans.',
         theme_color: '#0a0a0a',
         background_color: '#0a0a0a',
         display: 'standalone',

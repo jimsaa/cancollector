@@ -1,4 +1,5 @@
 import type { Can, CanInsert, CanUpdate } from '../types/can'
+import { normalizeCanCollectorFields } from './canCollectorFields'
 import { normalizeCanImageFields } from './canImage'
 import { discoverGuestCans, GUEST_CAN_STORAGE_KEYS } from './localCanDiscovery'
 import { generateId } from './id'
@@ -34,19 +35,21 @@ function readAll(): Can[] {
 }
 
 function migrateCan(c: Can): Can {
-  return normalizeCanImageFields({
-    ...c,
-    master_can_id: c.master_can_id ?? null,
-    country_variant: c.country_variant ?? null,
-    available_for_trade: c.available_for_trade ?? false,
-    wanted: c.wanted ?? (c.is_wishlist ? c.wishlist_status !== 'missing' : false),
-    is_wishlist: c.is_wishlist ?? false,
-    wishlist_status: c.wishlist_status ?? null,
-    image_source: c.image_source ?? 'placeholder',
-    user_image_url: c.user_image_url ?? null,
-    master_image_url: c.master_image_url ?? null,
-    off_image_url: c.off_image_url ?? null,
-  })
+  return normalizeCanCollectorFields(
+    normalizeCanImageFields({
+      ...c,
+      master_can_id: c.master_can_id ?? null,
+      country_variant: c.country_variant ?? null,
+      available_for_trade: c.available_for_trade ?? false,
+      wanted: c.wanted ?? (c.is_wishlist ? c.wishlist_status !== 'missing' : false),
+      is_wishlist: c.is_wishlist ?? false,
+      wishlist_status: c.wishlist_status ?? null,
+      image_source: c.image_source ?? 'placeholder',
+      user_image_url: c.user_image_url ?? null,
+      master_image_url: c.master_image_url ?? null,
+      off_image_url: c.off_image_url ?? null,
+    }),
+  )
 }
 
 function writeAll(cans: Can[]): void {
@@ -74,10 +77,22 @@ function toCan(userId: string, input: CanInsert): Can {
     user_image_url: input.user_image_url ?? null,
     master_image_url: input.master_image_url ?? null,
     off_image_url: input.off_image_url ?? null,
+    opening_status: input.opening_status ?? 'sealed',
     opened: input.opened ?? false,
     purchase_date: input.purchase_date ?? null,
+    purchase_country: input.purchase_country ?? null,
+    purchase_city: input.purchase_city ?? null,
+    purchase_store: input.purchase_store ?? null,
     added_date: new Date().toISOString(),
+    trade_status: input.trade_status ?? 'not_for_trade',
     available_for_trade: input.available_for_trade ?? false,
+    trade_price: input.trade_price ?? null,
+    trade_currency: input.trade_currency ?? null,
+    trade_note: input.trade_note ?? null,
+    is_public: input.is_public ?? false,
+    show_on_public_profile: input.show_on_public_profile ?? false,
+    condition_grade: input.condition_grade ?? 'unknown',
+    condition_notes: input.condition_notes ?? null,
     wanted: input.wanted ?? false,
     notes: input.notes ?? null,
     rarity: input.rarity ?? 'unknown',
@@ -99,7 +114,7 @@ export async function fetchLocalCanById(id: string): Promise<Can | null> {
 }
 
 export async function createLocalCan(userId: string, can: CanInsert): Promise<Can> {
-  const created = toCan(userId, can)
+  const created = migrateCan(toCan(userId, can))
   writeAll([created, ...readAll()])
   return created
 }

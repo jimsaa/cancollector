@@ -1,4 +1,6 @@
-# CanCollector
+# CanTrove
+
+Collect • Track • Trade
 
 A mobile-first PWA for collecting energy drink cans. Scan barcodes, auto-fetch product data from Open Food Facts, upload images, and manage your personal collection.
 

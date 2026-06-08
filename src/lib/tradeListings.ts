@@ -20,7 +20,12 @@ function requireClient() {
 }
 
 function defaultCondition(can: Can): TradeCondition {
-  if (can.opened) return 'opened'
+  const grade = can.condition_grade
+  if (grade === 'mint' || grade === 'excellent' || grade === 'good' || grade === 'damaged') {
+    return grade
+  }
+  if (grade === 'fair') return 'good'
+  if (can.opening_status !== 'sealed') return 'opened'
   return 'unknown'
 }
 

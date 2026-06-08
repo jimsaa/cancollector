@@ -1,6 +1,12 @@
 import { ArrowLeft, CheckCircle2, Package } from 'lucide-react'
 import type { CanFormData } from '../cans/CanForm'
+import { formatTradePrice } from '../../lib/canCollectorFields'
 import { getDisplayImageUrl, IMAGE_SOURCE_LABELS } from '../../lib/canImage'
+import {
+  CAN_TRADE_STATUS_LABELS,
+  CONDITION_GRADE_LABELS,
+  OPENING_STATUS_LABELS,
+} from '../../types/canCollector'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 
@@ -13,6 +19,7 @@ interface AddCanStepSummaryProps {
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
+  if (!value || value === '—') return null
   return (
     <div className="flex justify-between gap-4 border-b border-monster-border py-2.5 last:border-0">
       <span className="text-xs uppercase tracking-wide text-monster-muted">{label}</span>
@@ -29,6 +36,10 @@ export function AddCanStepSummary({
   onSave,
 }: AddCanStepSummaryProps) {
   const previewImage = getDisplayImageUrl(data)
+  const tradePrice = formatTradePrice(
+    data.trade_price.trim() ? Number(data.trade_price) : null,
+    data.trade_currency || null,
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -65,10 +76,29 @@ export function AddCanStepSummary({
           <SummaryRow label="Country" value={data.country || '—'} />
           <SummaryRow label="Barcode" value={data.barcode || '—'} />
           <SummaryRow label="Quantity" value={`×${data.quantity}`} />
-          <SummaryRow label="Condition" value={data.opened ? 'Opened' : 'Unopened'} />
+          <SummaryRow
+            label="Opening"
+            value={OPENING_STATUS_LABELS[data.opening_status]}
+          />
+          <SummaryRow
+            label="Condition"
+            value={CONDITION_GRADE_LABELS[data.condition_grade]}
+          />
+          <SummaryRow label="Condition notes" value={data.condition_notes || '—'} />
+          <SummaryRow label="Purchase date" value={data.purchase_date || '—'} />
+          <SummaryRow label="Purchase country" value={data.purchase_country || '—'} />
+          <SummaryRow label="Purchase city" value={data.purchase_city || '—'} />
+          <SummaryRow label="Purchase store" value={data.purchase_store || '—'} />
           <SummaryRow
             label="Trade"
-            value={data.available_for_trade ? 'Available for trade' : 'Not for trade'}
+            value={CAN_TRADE_STATUS_LABELS[data.trade_status]}
+          />
+          <SummaryRow label="Trade price" value={tradePrice || '—'} />
+          <SummaryRow label="Trade note" value={data.trade_note || '—'} />
+          <SummaryRow label="Public" value={data.is_public ? 'Yes' : 'No'} />
+          <SummaryRow
+            label="Public profile"
+            value={data.show_on_public_profile ? 'Visible' : 'Hidden'}
           />
         </div>
       </Card>

@@ -1,4 +1,5 @@
 import type { Can, CollectionBackup } from '../types/can'
+import { normalizeCanCollectorFields } from './canCollectorFields'
 import { normalizeCanImageFields } from './canImage'
 import { generateId } from './id'
 
@@ -58,7 +59,8 @@ export function downloadCollectionBackup(
 }
 
 function normalizeImportedCan(raw: Partial<Can>, userId: string): Can {
-  return normalizeCanImageFields({
+  return normalizeCanCollectorFields(
+    normalizeCanImageFields({
     id: raw.id ?? generateId(),
     user_id: userId,
     master_can_id: raw.master_can_id ?? null,
@@ -84,7 +86,17 @@ function normalizeImportedCan(raw: Partial<Can>, userId: string): Can {
     quantity: Math.max(1, raw.quantity ?? 1),
     is_wishlist: raw.is_wishlist ?? false,
     wishlist_status: raw.wishlist_status ?? null,
-  })
+    purchase_country: raw.purchase_country ?? null,
+    purchase_city: raw.purchase_city ?? null,
+    purchase_store: raw.purchase_store ?? null,
+    trade_price: raw.trade_price ?? null,
+    trade_currency: raw.trade_currency ?? null,
+    trade_note: raw.trade_note ?? null,
+    is_public: raw.is_public ?? false,
+    show_on_public_profile: raw.show_on_public_profile ?? false,
+    condition_notes: raw.condition_notes ?? null,
+    } as Can),
+  )
 }
 
 export function parseCollectionBackup(json: string, userId: string): Can[] {
