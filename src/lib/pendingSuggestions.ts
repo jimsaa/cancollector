@@ -21,6 +21,11 @@ import { useGuestStorage } from './guestStorage'
 import { isConfigured } from './mode'
 import { normalizeMasterCan } from './masterCanNormalize'
 import { buildMasterReferencePayload, toMasterCanReferenceFields } from './masterReferencePayload'
+import {
+  formatMasterCanError,
+  shouldRetryMasterCanWithoutExtendedColumns,
+  stripExtendedMasterColumns,
+} from './masterCanSupabase'
 import { generateId } from './id'
 import { supabase } from './supabase'
 
@@ -191,11 +196,49 @@ async function findCloudMasterBySourceUrl(sourceUrl: string): Promise<MasterCan 
   return data ? normalizeMasterCan(data as MasterCan) : null
 }
 
+function normalizeMasterSource(source: string | null | undefined): string | null {
+  if (!source) return null
+  if (source === 'user_scan' || source === 'open_food_facts' || source === 'master_database') {
+    return 'manual'
+  }
+  return source
+}
+
+async function writeCloudMasterCan(
+  payload: Record<string, unknown>,
+  match: { type: 'id'; id: string } | { type: 'insert' },
+): Promise<MasterCan> {
+  const client = requireClient()
+  let row: Record<string, unknown> = { ...payload }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result =
+      match.type === 'insert'
+        ? await client.from('master_cans').insert(row).select().single()
+        : await client.from('master_cans').update(row).eq('id', match.id).select().single()
+
+    if (!result.error && result.data) {
+      return normalizeMasterCan(result.data as MasterCan)
+    }
+
+    if (result.error && shouldRetryMasterCanWithoutExtendedColumns(result.error) && attempt === 0) {
+      if (import.meta.env.DEV) {
+        console.warn('[master_cans] Retrying without extended columns', result.error)
+      }
+      row = stripExtendedMasterColumns(row)
+      continue
+    }
+
+    throw new Error(formatMasterCanError(result.error, 'Failed to save master can'))
+  }
+
+  throw new Error('Failed to save master can')
+}
+
 async function upsertCloudMasterCan(
   master: ApproveSuggestionInput,
   adminApproved = true,
 ): Promise<MasterCan> {
-  const client = requireClient()
   const barcode = master.barcode?.trim() ?? null
   const sourceUrl = master.source_url?.trim() ?? null
 
@@ -209,7 +252,7 @@ async function upsertCloudMasterCan(
     }),
   )
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     brand: master.brand,
     product_name: master.product_name,
     flavor: master.flavor ?? null,
@@ -219,7 +262,7 @@ async function upsertCloudMasterCan(
     category: master.category ?? null,
     barcode,
     ...referenceFields,
-    source: master.source ?? null,
+    source: normalizeMasterSource(master.source),
     source_url: sourceUrl,
     rarity: master.rarity ?? 'unknown',
     release_year: master.release_year ?? null,
@@ -230,39 +273,24 @@ async function upsertCloudMasterCan(
   if (sourceUrl) {
     const existingByUrl = await findCloudMasterBySourceUrl(sourceUrl)
     if (existingByUrl) {
-      const { data, error } = await client
-        .from('master_cans')
-        .update(payload)
-        .eq('id', existingByUrl.id)
-        .select()
-        .single()
-      if (error) throw error
-      return normalizeMasterCan(data as MasterCan)
+      return writeCloudMasterCan(payload, { type: 'id', id: existingByUrl.id })
     }
   }
 
   if (barcode) {
+    const client = requireClient()
     const { data: existing } = await client
       .from('master_cans')
-      .select('*')
+      .select('id')
       .eq('barcode', barcode)
       .maybeSingle()
 
-    if (existing) {
-      const { data, error } = await client
-        .from('master_cans')
-        .update(payload)
-        .eq('id', existing.id)
-        .select()
-        .single()
-      if (error) throw error
-      return normalizeMasterCan(data as MasterCan)
+    if (existing?.id) {
+      return writeCloudMasterCan(payload, { type: 'id', id: existing.id as string })
     }
   }
 
-  const { data, error } = await client.from('master_cans').insert(payload).select().single()
-  if (error) throw error
-  return normalizeMasterCan(data as MasterCan)
+  return writeCloudMasterCan(payload, { type: 'insert' })
 }
 
 export interface ApproveSuggestionResult {

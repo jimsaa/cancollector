@@ -21,6 +21,7 @@ import {
   rejectPendingSuggestion,
   type ApproveSuggestionInput,
 } from '../lib/pendingSuggestions'
+import { formatMasterCanError } from '../lib/masterCanSupabase'
 import type { PendingCanSuggestion } from '../types/pendingSuggestion'
 import type { Rarity } from '../types/can'
 
@@ -109,7 +110,7 @@ export function AdminMasterCansPage() {
       setForm(null)
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Approve failed')
+      setError(formatMasterCanError(err, 'Approve failed'))
     } finally {
       setActionId(null)
     }
