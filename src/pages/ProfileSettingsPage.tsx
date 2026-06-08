@@ -13,8 +13,12 @@ import { normalizeUsernameInput, publicProfilePath, validateUsername } from '../
 import { isPremiumActive } from '../lib/premium'
 import { formatSupabaseError } from '../lib/supabaseDebug'
 import { fetchCans } from '../lib/cans'
+import { buildBadgeComputeInput, loadUserBadgesWithSync } from '../lib/badges'
+import { fetchMasterCans } from '../lib/masterCans'
+import { fetchPublicTradeListings } from '../lib/publicProfiles'
 import { Select } from '../components/ui/Select'
 import type { Can } from '../types/can'
+import type { BadgeWithEarned } from '../types/badge'
 
 export function ProfileSettingsPage() {
   const { user, profile, isCloudSynced, isGuest, updateProfile, refreshProfile, premiumFeatures } =
@@ -28,6 +32,8 @@ export function ProfileSettingsPage() {
   const [isPublic, setIsPublic] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [featuredCanId, setFeaturedCanId] = useState<string | null>(null)
+  const [featuredBadgeId, setFeaturedBadgeId] = useState<string | null>(null)
+  const [earnedBadges, setEarnedBadges] = useState<BadgeWithEarned[]>([])
   const [collectionCans, setCollectionCans] = useState<Can[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -43,14 +49,30 @@ export function ProfileSettingsPage() {
     setIsPublic(profile.is_public_profile)
     setAvatarUrl(profile.avatar_url)
     setFeaturedCanId(profile.featured_can_id ?? null)
+    setFeaturedBadgeId(profile.featured_badge_id ?? null)
   }, [profile])
 
   useEffect(() => {
     if (!user || isGuest) return
-    void fetchCans(user.id)
-      .then((cans) => setCollectionCans(cans.filter((c) => !c.is_wishlist)))
-      .catch(() => setCollectionCans([]))
-  }, [user?.id, isGuest])
+    void (async () => {
+      try {
+        const cans = await fetchCans(user.id)
+        const collection = cans.filter((c) => !c.is_wishlist)
+        setCollectionCans(collection)
+        if (!profile) return
+        const [masters, listings] = await Promise.all([
+          fetchMasterCans('all'),
+          fetchPublicTradeListings(user.id),
+        ])
+        const input = await buildBadgeComputeInput(user.id, profile, cans, masters, listings)
+        const badges = await loadUserBadgesWithSync(user.id, input)
+        setEarnedBadges(badges)
+      } catch {
+        setCollectionCans([])
+        setEarnedBadges([])
+      }
+    })()
+  }, [user?.id, isGuest, profile?.id])
 
   if (isGuest) {
     return <Navigate to="/profile" replace />
@@ -105,6 +127,10 @@ export function ProfileSettingsPage() {
 
       const validFeaturedId =
         featuredCanId && collectionCans.some((c) => c.id === featuredCanId) ? featuredCanId : null
+      const validBadgeId =
+        featuredBadgeId && earnedBadges.some((b) => b.id === featuredBadgeId)
+          ? featuredBadgeId
+          : null
 
       await updateProfile({
         username: normalizedUsername || null,
@@ -113,6 +139,7 @@ export function ProfileSettingsPage() {
         country: country.trim() || null,
         is_public_profile: isPublic,
         featured_can_id: validFeaturedId,
+        featured_badge_id: validBadgeId,
       })
       await refreshProfile()
       setMessage('Profile settings saved')
@@ -224,6 +251,31 @@ export function ProfileSettingsPage() {
                 className="h-5 w-5 accent-monster-green"
               />
             </label>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <Star size={14} className="text-monster-green" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-monster-muted">
+                  Featured badge
+                </p>
+              </div>
+              <Select
+                label=""
+                value={featuredBadgeId ?? ''}
+                onChange={(e) => setFeaturedBadgeId(e.target.value || null)}
+              >
+                <option value="">None — auto-pick best badge</option>
+                {earnedBadges.map((badge) => (
+                  <option key={badge.id} value={badge.id}>
+                    {badge.emoji} {badge.name}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-monster-muted">
+                Highlighted on your public profile and leaderboard. {earnedBadges.length} badge
+                {earnedBadges.length === 1 ? '' : 's'} earned.
+              </p>
+            </div>
 
             <div>
               <div className="mb-2 flex items-center gap-2">

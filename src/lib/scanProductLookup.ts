@@ -29,6 +29,8 @@ export interface BarcodeLookupResult {
   offProduct: ProductLookup | null
   offStatus: OffLookupStatus
   primarySource: 'master_database' | 'open_food_facts' | 'none'
+  /** Active entries in the CanTrove master catalog */
+  masterCatalogTotal: number
   form: CanFormData
 }
 
@@ -142,6 +144,9 @@ export async function lookupBarcodeProduct(
     }
   }
 
+  const activeMasters = masters.filter((m) => m.active !== false)
+  const masterCatalogTotal = activeMasters.length
+
   const exactMaster = masters.length > 0 ? findMasterByBarcode(masters, trimmed) : null
 
   if (isCompleteMasterMatch(exactMaster)) {
@@ -161,6 +166,7 @@ export async function lookupBarcodeProduct(
       offProduct: null,
       offStatus: 'skipped',
       primarySource: 'master_database',
+      masterCatalogTotal,
       form,
     }
   }
@@ -240,6 +246,7 @@ export async function lookupBarcodeProduct(
     offProduct,
     offStatus: off.status,
     primarySource,
+    masterCatalogTotal,
     form,
   }
 }

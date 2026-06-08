@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { Link } from 'react-router-dom'
 
-import { Database, Inbox, LogOut, Sparkles } from 'lucide-react'
+import { Database, Inbox, LogOut, Sparkles, Users } from 'lucide-react'
 
 import { Button } from '../ui/Button'
 
@@ -41,6 +41,13 @@ export function AdminHubNav({ showExit, onExit }: AdminHubNavProps) {
   return (
 
     <div className="flex flex-wrap gap-2">
+
+      <Link to="/admin/users">
+        <Button variant="secondary" className="py-2 text-xs">
+          <Users size={14} />
+          Users
+        </Button>
+      </Link>
 
       <Link to="/admin/feedback">
 

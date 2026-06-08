@@ -10,6 +10,7 @@ const PUBLIC_PROFILE_COLUMNS = [
   'avatar_url',
   'is_public_profile',
   'featured_can_id',
+  'featured_badge_id',
 ] as const
 
 function isMissingColumnError(err: unknown): boolean {
@@ -51,6 +52,10 @@ function normalizeProfile(raw: Record<string, unknown>): Profile {
     created_at: raw.created_at as string,
     premium_status: (raw.premium_status as Profile['premium_status']) ?? 'free',
     premium_until: (raw.premium_until as string | null) ?? null,
+    is_premium: Boolean(raw.is_premium),
+    premium_source: (raw.premium_source as string | null) ?? null,
+    premium_expires_at: (raw.premium_expires_at as string | null) ?? null,
+    premium_notes: (raw.premium_notes as string | null) ?? null,
     role,
     username: username ? username.toLowerCase() : null,
     public_display_name: (raw.public_display_name as string | null) ?? null,
@@ -59,6 +64,7 @@ function normalizeProfile(raw: Record<string, unknown>): Profile {
     avatar_url: (raw.avatar_url as string | null) ?? null,
     is_public_profile: Boolean(raw.is_public_profile),
     featured_can_id: (raw.featured_can_id as string | null) ?? null,
+    featured_badge_id: (raw.featured_badge_id as string | null) ?? null,
   }
 }
 

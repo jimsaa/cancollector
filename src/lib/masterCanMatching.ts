@@ -1,5 +1,6 @@
 import type { Can, CanInsert } from '../types/can'
 
+import type { UserCanStatusMap } from '../types/userCanStatus'
 import type { MasterCan, MasterCanWithStatus } from '../types/masterCan'
 
 import { getDefaultCollectionSource, resolveCanImage } from './canImage'
@@ -236,19 +237,45 @@ export function attachMasterStatus(
 
   wishlistedMasterIds?: Set<string>,
 
+  statusMap?: UserCanStatusMap,
+
 ): MasterCanWithStatus[] {
 
-  return masters.map((master) => ({
+  return masters.map((master) => {
 
-    ...master,
+    const owned = isMasterCanOwned(master, userCans)
 
-    owned: isMasterCanOwned(master, userCans),
+    const userStatus = statusMap?.[master.id] ?? null
 
-    wanted:
+    const wanted =
 
-      isMasterCanWanted(master, userCans) || (wishlistedMasterIds?.has(master.id) ?? false),
+      userStatus === 'want' ||
 
-  }))
+      isMasterCanWanted(master, userCans) ||
+
+      (wishlistedMasterIds?.has(master.id) ?? false)
+
+    const needed = userStatus === 'need'
+
+    const markedGot = userStatus === 'got' || owned
+
+    return {
+
+      ...master,
+
+      owned,
+
+      wanted,
+
+      needed,
+
+      markedGot,
+
+      userStatus,
+
+    }
+
+  })
 
 }
 
@@ -340,6 +367,51 @@ export function masterCanToWishlistInsert(master: MasterCan): CanInsert {
 
   }
 
+}
+
+export function masterCanToCollectionInsert(master: MasterCan): CanInsert {
+  const master_image_url = getApprovedMasterReferenceImageUrl(master)
+  const resolved = resolveCanImage(
+    master_image_url ? 'master_reference' : 'default_placeholder',
+    { master_image_url, master_reference_approved: Boolean(master_image_url) },
+  )
+
+  return {
+    master_can_id: master.id,
+    barcode: master.barcode,
+    name: master.product_name,
+    brand: master.brand,
+    flavor: master.flavor,
+    volume: master.volume,
+    country: master.variant_country ?? master.country,
+    country_variant: master.variant_name,
+    image_url: resolved.image_url,
+    image_source: resolved.image_source,
+    user_image_url: null,
+    master_image_url,
+    off_image_url: null,
+    opening_status: 'sealed',
+    opened: false,
+    purchase_date: null,
+    purchase_country: null,
+    purchase_city: null,
+    purchase_store: null,
+    trade_status: 'not_for_trade',
+    available_for_trade: false,
+    trade_price: null,
+    trade_currency: null,
+    trade_note: null,
+    is_public: false,
+    show_on_public_profile: false,
+    condition_grade: 'unknown',
+    condition_notes: null,
+    wanted: false,
+    notes: null,
+    rarity: master.rarity,
+    quantity: 1,
+    is_wishlist: false,
+    wishlist_status: null,
+  }
 }
 
 

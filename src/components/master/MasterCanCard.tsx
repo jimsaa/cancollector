@@ -1,17 +1,25 @@
-import { Heart, Check } from 'lucide-react'
-import type { MasterCanWithStatus } from '../../types/masterCan'
+import { Link } from 'react-router-dom'
+import { Check } from 'lucide-react'
+import type { MasterCanCommunityCounts, MasterCanWithStatus } from '../../types/masterCan'
+import type { UserCanStatusType } from '../../types/userCanStatus'
+import { getMasterCollectionSet } from '../../lib/collectionSets'
+import { getVariantCountryLabel } from '../../lib/countryVariants'
 import {
   getMasterReferenceDisplayUrl,
   getMasterReferenceImageUrl,
 } from '../../lib/masterReferenceImage'
+import { CommunityCountLabels } from './CommunityCountLabels'
+import { MasterCanStatusButtons } from './MasterCanStatusButtons'
 import { Card } from '../ui/Card'
-import { Button } from '../ui/Button'
 
 interface MasterCanCardProps {
   can: MasterCanWithStatus
-  onToggleWant?: (can: MasterCanWithStatus) => void
-  wantLoading?: boolean
+  onStatus?: (can: MasterCanWithStatus, status: UserCanStatusType) => void
+  statusLoading?: boolean
   showOwnedBadge?: boolean
+  showStatusButtons?: boolean
+  communityCounts?: MasterCanCommunityCounts
+  linkToDetail?: boolean
 }
 
 const rarityColors: Record<string, string> = {
@@ -23,63 +31,94 @@ const rarityColors: Record<string, string> = {
 
 export function MasterCanCard({
   can,
-  onToggleWant,
-  wantLoading,
+  onStatus,
+  statusLoading,
   showOwnedBadge = true,
+  showStatusButtons = false,
+  communityCounts,
+  linkToDetail = true,
 }: MasterCanCardProps) {
-  return (
-    <Card className="flex gap-3 p-3">
-      <div className="flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-monster-card">
-        {getMasterReferenceImageUrl(can) ? (
-          <img
-            src={getMasterReferenceDisplayUrl(can)}
-            alt=""
-            className="h-full w-full object-contain p-0.5"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <span className="text-[10px] font-bold uppercase text-monster-muted">{can.brand[0]}</span>
-        )}
-      </div>
+  const country = getVariantCountryLabel(can)
+  const set = getMasterCollectionSet(can)
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-white">{can.product_name}</p>
-            <p className="text-xs text-monster-muted">
-              {[can.brand, can.flavor, can.variant_name, can.volume, can.country]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
+  const inner = (
+    <Card className="flex flex-col gap-3 p-3">
+      <div className="flex gap-3">
+        <div className="flex h-16 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-monster-card">
+          {getMasterReferenceImageUrl(can) ? (
+            <img
+              src={getMasterReferenceDisplayUrl(can)}
+              alt=""
+              className="h-full w-full object-contain p-0.5"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="text-[10px] font-bold uppercase text-monster-muted">{can.brand[0]}</span>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              {linkToDetail ? (
+                <Link
+                  to={`/cans/${can.id}`}
+                  className="truncate font-semibold text-white hover:text-monster-green"
+                >
+                  {can.product_name}
+                </Link>
+              ) : (
+                <p className="truncate font-semibold text-white">{can.product_name}</p>
+              )}
+              <p className="text-xs text-monster-muted">
+                {[can.brand, can.flavor, can.volume].filter(Boolean).join(' · ')}
+              </p>
+              <p className="mt-0.5 text-[10px] text-monster-muted">
+                {[set, country].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+            {showOwnedBadge && can.owned ? (
+              <span className="flex shrink-0 items-center gap-1 rounded-full bg-monster-green/20 px-2 py-0.5 text-[10px] font-semibold text-monster-green">
+                <Check size={12} />
+                Owned
+              </span>
+            ) : null}
           </div>
-          {showOwnedBadge && can.owned ? (
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-monster-green/20 px-2 py-0.5 text-[10px] font-semibold text-monster-green">
-              <Check size={12} />
-              Owned
+
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className={`text-[10px] uppercase tracking-wide ${rarityColors[can.rarity]}`}>
+              {can.rarity}
+              {can.discontinued ? ' · discontinued' : ''}
             </span>
-          ) : null}
-        </div>
-
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <span className={`text-[10px] uppercase tracking-wide ${rarityColors[can.rarity]}`}>
-            {can.rarity}
-            {can.discontinued ? ' · discontinued' : ''}
-          </span>
-
-          {!can.owned && onToggleWant ? (
-            <Button
-              type="button"
-              variant={can.wanted ? 'secondary' : 'ghost'}
-              className="py-1.5 text-xs"
-              loading={wantLoading}
-              onClick={() => onToggleWant(can)}
-            >
-              <Heart size={14} className={can.wanted ? 'fill-monster-green text-monster-green' : ''} />
-              {can.wanted ? 'Wanted' : 'Want'}
-            </Button>
-          ) : null}
+            {can.needed ? (
+              <span className="text-[10px] font-semibold uppercase text-yellow-400">Needed</span>
+            ) : can.wanted ? (
+              <span className="text-[10px] font-semibold uppercase text-monster-green">Wanted</span>
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {communityCounts ? <CommunityCountLabels counts={communityCounts} compact /> : null}
+
+      {showStatusButtons && onStatus ? (
+        <MasterCanStatusButtons
+          can={can}
+          loading={statusLoading}
+          compact
+          onStatus={(status) => onStatus(can, status)}
+        />
+      ) : null}
     </Card>
   )
+
+  if (linkToDetail && !showStatusButtons) {
+    return (
+      <Link to={`/cans/${can.id}`} className="block transition-opacity hover:opacity-90">
+        {inner}
+      </Link>
+    )
+  }
+
+  return inner
 }

@@ -1,3 +1,5 @@
+import { supabase } from './supabase'
+
 /** Columns added in later migrations — omitted on fallback if DB is behind. */
 
 export const EXTENDED_MASTER_CAN_COLUMNS = [
@@ -23,6 +25,24 @@ export const EXTENDED_MASTER_CAN_COLUMNS = [
   'variant_name',
 
   'barcode_source',
+
+  'collection_set',
+
+  'base_product_key',
+
+  'variant_country',
+
+  'variant_region',
+
+  'language_code',
+
+  'release_date',
+
+  'discontinued_date',
+
+  'catalog_date',
+
+  'collector_summary',
 
 ] as const
 
@@ -187,6 +207,33 @@ export function isBarcodeDuplicateError(err: unknown): boolean {
 
   return msg.includes('barcode')
 
+}
+
+export interface MasterCanCollectorFieldsUpdate {
+  collection_set?: string | null
+  base_product_key?: string | null
+  variant_country?: string | null
+  variant_region?: string | null
+  language_code?: string | null
+  release_date?: string | null
+  discontinued_date?: string | null
+  catalog_date?: string | null
+  collector_summary?: string | null
+}
+
+export async function updateMasterCanCollectorFields(
+  masterCanId: string,
+  fields: MasterCanCollectorFieldsUpdate,
+): Promise<void> {
+  if (!supabase) throw new Error('Supabase client unavailable')
+
+  const payload: Record<string, unknown> = { ...fields }
+  for (const key of Object.keys(payload)) {
+    if (payload[key] === undefined) delete payload[key]
+  }
+
+  const { error } = await supabase.from('master_cans').update(payload).eq('id', masterCanId)
+  if (error) throw error
 }
 
 

@@ -51,8 +51,8 @@ export function AddCanStepSummary({
       {data.image_source === 'open_food_facts_unverified' ? (
         <p className="flex items-start gap-2 rounded-xl border border-yellow-600/30 bg-yellow-900/20 p-3 text-xs text-yellow-200">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-yellow-400" />
-          You chose an unverified Open Food Facts image. Consider uploading your own can photo for
-          better collection quality.
+          This can uses an unverified barcode lookup image. Consider uploading your own can photo
+          for better collection quality.
         </p>
       ) : null}
 

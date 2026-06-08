@@ -4,8 +4,10 @@ import {
   Globe2,
   Heart,
   Layers,
+  ListMinus,
   Sparkles,
   Tag,
+  Target,
 } from 'lucide-react'
 import type { PublicProfileStats } from '../../types/profile'
 import { Card } from '../ui/Card'
@@ -56,6 +58,9 @@ export function PublicCollectorStats({ stats }: PublicCollectorStatsProps) {
           value={`${stats.activeTradeListings} Active`}
         />
         <StatRow icon={<Heart size={16} />} label="Wishlist Items" value={stats.wishlistCount} />
+        <StatRow icon={<ListMinus size={16} />} label="Missing from Master DB" value={stats.missingCount} />
+        <StatRow icon={<Target size={16} />} label="Needed to Complete" value={stats.needCount} />
+        <StatRow icon={<Heart size={16} />} label="Wanted" value={stats.wantCount} />
       </div>
     </Card>
   )

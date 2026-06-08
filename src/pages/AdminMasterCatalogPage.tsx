@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Barcode, Lock, Shield } from 'lucide-react'
+import { Barcode, Lock, Pencil, Shield } from 'lucide-react'
 import { AdminAttachBarcodeModal } from '../components/admin/AdminAttachBarcodeModal'
+import { AdminMasterCollectorEditModal } from '../components/admin/AdminMasterCollectorEditModal'
 import { AdminHubNav } from '../components/admin/AdminHubNav'
 import { Layout } from '../components/layout/Layout'
 import { Card } from '../components/ui/Card'
@@ -34,6 +35,7 @@ export function AdminMasterCatalogPage() {
   const [attachTarget, setAttachTarget] = useState<MasterCan | null>(null)
   const [attachSaving, setAttachSaving] = useState(false)
   const [attachError, setAttachError] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<MasterCan | null>(null)
 
   const access = getAdminAccessState({
     loading: authLoading,
@@ -220,19 +222,29 @@ export function AdminMasterCatalogPage() {
                       )}
                     </div>
                   </div>
-                  {!row.barcode ? (
+                  <div className="mt-3 flex flex-col gap-2">
                     <Button
                       variant="secondary"
-                      className="mt-3 w-full py-2 text-xs"
-                      onClick={() => {
-                        setAttachError(null)
-                        setAttachTarget(row)
-                      }}
+                      className="w-full py-2 text-xs"
+                      onClick={() => setEditTarget(row)}
                     >
-                      <Barcode size={14} />
-                      Attach barcode
+                      <Pencil size={14} />
+                      Edit collector fields
                     </Button>
-                  ) : null}
+                    {!row.barcode ? (
+                      <Button
+                        variant="secondary"
+                        className="w-full py-2 text-xs"
+                        onClick={() => {
+                          setAttachError(null)
+                          setAttachTarget(row)
+                        }}
+                      >
+                        <Barcode size={14} />
+                        Attach barcode
+                      </Button>
+                    ) : null}
+                  </div>
                 </Card>
               ))}
             </div>
@@ -246,6 +258,13 @@ export function AdminMasterCatalogPage() {
           error={attachError}
           onClose={() => setAttachTarget(null)}
           onSave={(barcode, source) => void handleAttach(barcode, source)}
+        />
+
+        <AdminMasterCollectorEditModal
+          open={Boolean(editTarget)}
+          master={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => void load()}
         />
       </div>
     </Layout>

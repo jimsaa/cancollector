@@ -65,6 +65,29 @@ export async function fetchActiveMasterCans(brand: MasterBrandFilter = 'all'): P
   return all.filter((m) => m.active !== false)
 }
 
+export async function fetchMasterCanById(id: string): Promise<MasterCan | null> {
+  if (!id) return null
+
+  if (!isConfigured) {
+    const local = await fetchLocalOrSeedMasters('all')
+    const found = local.find((m) => m.id === id)
+    return found ?? null
+  }
+
+  const client = requireClient()
+  const { data, error } = await client.from('master_cans').select('*').eq('id', id).maybeSingle()
+
+  if (error) {
+    if (isMissingMasterCansTableError(error)) {
+      const local = await fetchLocalOrSeedMasters('all')
+      return local.find((m) => m.id === id) ?? null
+    }
+    throw error
+  }
+
+  return data ? normalizeMasterCan(data as MasterCan) : null
+}
+
 /** Seed-only count for display when DB unavailable. */
 export function getSeedMasterCanCount(): number {
   return MASTER_CANS_SEED.length

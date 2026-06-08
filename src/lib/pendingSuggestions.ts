@@ -660,6 +660,15 @@ export async function approvePendingSuggestion(
       release_year: master.release_year ?? null,
       discontinued: master.discontinued ?? false,
       active: true,
+      collection_set: null,
+      base_product_key: null,
+      variant_country: null,
+      variant_region: null,
+      language_code: null,
+      release_date: null,
+      discontinued_date: null,
+      catalog_date: null,
+      collector_summary: null,
     })
     updatedExisting = Boolean(beforeId)
     updateLocalPendingSuggestion(suggestion.id, { status: 'approved' })

@@ -68,6 +68,7 @@ export function AddCanPage() {
   const [lookupLoading, setLookupLoading] = useState(false)
   const [offStatus, setOffStatus] = useState<OffLookupStatus>('skipped')
   const [primarySource, setPrimarySource] = useState<'master_database' | 'open_food_facts' | 'none'>('none')
+  const [masterCatalogTotal, setMasterCatalogTotal] = useState(0)
   const [cameraError, setCameraError] = useState<CameraErrorInfo | null>(null)
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -93,6 +94,7 @@ export function AddCanPage() {
     setManualBarcode('')
     setOffStatus('skipped')
     setPrimarySource('none')
+    setMasterCatalogTotal(0)
     imageUpload.clearUploadState()
   }, [imageUpload])
 
@@ -130,6 +132,7 @@ export function AddCanPage() {
         setForm(result.form)
         setOffStatus(result.offStatus)
         setPrimarySource(result.primarySource)
+        setMasterCatalogTotal(result.masterCatalogTotal)
 
         const nextForm = result.form
 
@@ -153,6 +156,7 @@ export function AddCanPage() {
         setDeclinedNameMatch(false)
         setOffStatus('error')
         setPrimarySource('none')
+        setMasterCatalogTotal(0)
 
         if (checkDuplicate(barcode, '', '')) return
 
@@ -376,6 +380,7 @@ export function AddCanPage() {
             data={form}
             offStatus={offStatus}
             primarySource={primarySource}
+            masterCatalogTotal={masterCatalogTotal}
             matchedMaster={matchedMaster}
             matchKind={matchKind}
             matchConfidence={matchConfidence}

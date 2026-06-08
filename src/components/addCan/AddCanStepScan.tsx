@@ -115,7 +115,7 @@ export function AddCanStepScan({
       </Card>
 
       {lookupLoading ? (
-        <LoadingSpinner label="Looking up product in Open Food Facts and master database..." />
+        <LoadingSpinner label="Checking CanTrove Master Database..." />
       ) : null}
     </div>
   )

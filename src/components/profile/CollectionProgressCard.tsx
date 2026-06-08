@@ -40,11 +40,13 @@ export function CollectionProgressCard({ stats }: CollectionProgressCardProps) {
           Master Database Coverage
         </p>
         <p className="mt-0.5 text-sm text-white">
-          <span className="font-semibold text-monster-green">{stats.completionOwned}</span>
-          {' verified '}
-          {stats.completionOwned === 1 ? 'can' : 'cans'}
+          Master Database Coverage:{' '}
+          <span className="font-semibold text-monster-green">
+            {stats.completionTotal.toLocaleString()}
+          </span>{' '}
+          verified {stats.completionTotal === 1 ? 'can' : 'cans'}
           {' · '}
-          {stats.completionTotal} master entries
+          {stats.completionOwned} in this collection
         </p>
       </div>
     </Card>

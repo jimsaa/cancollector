@@ -20,6 +20,9 @@ import { Button } from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
 import { checkLocalImportState, resetImportPrompt } from '../lib/localImport'
 import { getPublicDisplayName } from '../lib/publicProfiles'
+import { PremiumBadge } from '../components/profile/PremiumBadge'
+import { getDashboardPremiumLabel } from '../lib/premiumBadges'
+import { isPremiumActive } from '../lib/premium'
 import { fetchCans } from '../lib/cans'
 
 export function ProfilePage() {
@@ -77,8 +80,8 @@ export function ProfilePage() {
     }
   }
 
-  const premiumStatus = profile?.premium_status ?? 'free'
-  const isPremium = premiumStatus === 'premium'
+  const isPremium = isPremiumActive(profile)
+  const premiumLabel = getDashboardPremiumLabel(profile)
   const canSharePublic =
     isCloudSynced && profile?.is_public_profile && Boolean(profile.username)
 
@@ -94,7 +97,11 @@ export function ProfilePage() {
           is_public_profile: true,
           premium_status: profile.premium_status,
           premium_until: profile.premium_until,
+          is_premium: profile.is_premium,
+          premium_source: profile.premium_source,
+          premium_expires_at: profile.premium_expires_at,
           featured_can_id: profile.featured_can_id,
+          featured_badge_id: profile.featured_badge_id,
           created_at: profile.created_at,
         })
       : null
@@ -115,6 +122,11 @@ export function ProfilePage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-lg font-semibold text-white">{displayLabel}</p>
+              {isPremium ? (
+                <div className="mt-1">
+                  <PremiumBadge profile={profile} size="sm" />
+                </div>
+              ) : null}
               <p className="truncate text-sm text-monster-muted">
                 {isCloudSynced ? user?.email : 'Guest — saved on this device only'}
               </p>
@@ -288,12 +300,14 @@ export function ProfilePage() {
           <Card>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-white">Plan</p>
-                <p className="text-sm capitalize text-monster-muted">{premiumStatus}</p>
-                {profile?.premium_until ? (
+                <p className="text-sm font-medium text-white">Premium Status</p>
+                <p className="text-sm text-monster-muted">{premiumLabel}</p>
+                {profile?.premium_expires_at ? (
                   <p className="text-xs text-monster-muted">
-                    Until {new Date(profile.premium_until).toLocaleDateString()}
+                    Until {new Date(profile.premium_expires_at).toLocaleDateString()}
                   </p>
+                ) : isPremium ? (
+                  <p className="text-xs text-monster-green">Lifetime access</p>
                 ) : null}
               </div>
               {isPremium ? (

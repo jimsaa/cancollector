@@ -47,7 +47,9 @@ export function CollectionProgressCard({ progress, showLink = true }: Collection
       </div>
 
       <p className="mt-2 text-xs text-monster-muted">
-        {progress.missing} missing from the master database
+        Master Database Coverage: {progress.total.toLocaleString()} verified{' '}
+        {progress.total === 1 ? 'can' : 'cans'}
+        {progress.missing > 0 ? ` · ${progress.missing} missing from your collection` : ''}
       </p>
     </Card>
   )

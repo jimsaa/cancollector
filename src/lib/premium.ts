@@ -15,16 +15,30 @@ export interface PremiumFeatures {
   canUseVerifiedCollectorBadge: boolean
 }
 
-export function isPremiumActive(
-  profile: Pick<Profile, 'premium_status' | 'premium_until'> | null,
-): boolean {
-  if (!profile || profile.premium_status !== 'premium') return false
-  if (profile.premium_until && new Date(profile.premium_until) < new Date()) return false
+type PremiumProfileFields = Pick<
+  Profile,
+  'premium_status' | 'premium_until' | 'is_premium' | 'premium_expires_at'
+>
+
+function getPremiumExpiry(profile: PremiumProfileFields): string | null {
+  return profile.premium_expires_at ?? profile.premium_until ?? null
+}
+
+export function isPremiumActive(profile: PremiumProfileFields | null): boolean {
+  if (!profile) return false
+
+  const activeViaFlag = profile.is_premium === true
+  const activeViaLegacy = profile.premium_status === 'premium'
+  if (!activeViaFlag && !activeViaLegacy) return false
+
+  const expiresAt = getPremiumExpiry(profile)
+  if (expiresAt && new Date(expiresAt) < new Date()) return false
+
   return true
 }
 
 export function getPremiumFeatures(
-  profile: Pick<Profile, 'premium_status' | 'premium_until'> | null,
+  profile: PremiumProfileFields | null,
   options: { isCloudMode: boolean },
 ): PremiumFeatures {
   const isPremium = isPremiumActive(profile)

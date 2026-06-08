@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, PackageOpen, ArrowLeftRight, Layers, PlusCircle, BarChart3 } from 'lucide-react'
+import { Package, PackageOpen, ArrowLeftRight, Layers, PlusCircle, BarChart3, Trophy } from 'lucide-react'
 import { Layout } from '../components/layout/Layout'
 import { BrandFilter } from '../components/master/BrandFilter'
 import { CollectionProgressCard } from '../components/master/CollectionProgressCard'
@@ -10,6 +10,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
 import { useAuth } from '../hooks/useAuth'
+import { PremiumStatusCard } from '../components/profile/PremiumStatusCard'
 import { useCans } from '../hooks/useCans'
 import { useMasterCans } from '../hooks/useMasterCans'
 import { computeStats } from '../lib/cans'
@@ -36,7 +37,7 @@ function StatCard({ label, value, icon }: StatCardProps) {
 }
 
 export function DashboardPage() {
-  const { storageUserId } = useAuth()
+  const { storageUserId, profile, isCloudSynced } = useAuth()
   const { cans, loading, error } = useCans(storageUserId)
   const [brand, setBrand] = useState<MasterBrandFilter>('all')
   const { masters, loading: mastersLoading } = useMasterCans(brand)
@@ -58,6 +59,25 @@ export function DashboardPage() {
           <BrandFilter value={brand} onChange={setBrand} />
 
           {!mastersLoading ? <CollectionProgressCard progress={progress} /> : null}
+
+          {isCloudSynced ? <PremiumStatusCard profile={profile} /> : null}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Link
+              to="/sets"
+              className="flex items-center justify-center gap-2 rounded-xl border border-monster-border bg-monster-card px-4 py-3 text-sm font-medium text-monster-green transition-colors hover:border-monster-green/50"
+            >
+              <Layers size={18} />
+              Collection sets
+            </Link>
+            <Link
+              to="/leaderboard"
+              className="flex items-center justify-center gap-2 rounded-xl border border-monster-border bg-monster-card px-4 py-3 text-sm font-medium text-monster-green transition-colors hover:border-monster-green/50"
+            >
+              <Trophy size={18} />
+              Leaderboard
+            </Link>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <StatCard label="Total Cans" value={stats.total} icon={<Layers size={18} />} />

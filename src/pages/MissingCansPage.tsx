@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { Layout } from '../components/layout/Layout'
 import { BrandFilter } from '../components/master/BrandFilter'
@@ -12,30 +12,45 @@ import { Select } from '../components/ui/Select'
 import { useAuth } from '../hooks/useAuth'
 import { useCans } from '../hooks/useCans'
 import { useMasterCans } from '../hooks/useMasterCans'
+import { useUserCanStatus } from '../hooks/useUserCanStatus'
 import { useUserWishlist } from '../hooks/useUserWishlist'
+import { getMasterCollectionSet } from '../lib/collectionSets'
+import { getVariantCountryLabel } from '../lib/countryVariants'
 import { computeCollectionProgress } from '../lib/collectionProgress'
-import {
-  attachMasterStatus,
-  findWishlistEntryForMaster,
-  masterCanToWishlistInsert,
-} from '../lib/masterCanMatching'
-import { addUserWishlist, removeUserWishlist } from '../lib/userWishlist'
+import { attachMasterStatus } from '../lib/masterCanMatching'
+import { toggleMasterCanStatus } from '../lib/masterCanStatusActions'
+import { fetchCommunityCountsForMasters } from '../lib/userCanStatus'
+import { COLLECTION_SETS } from '../types/collectionSet'
 import type { Rarity } from '../types/can'
-import type { MasterBrandFilter, MasterCanWithStatus } from '../types/masterCan'
+import type { MasterBrandFilter, MasterCanCommunityCounts, MasterCanWithStatus } from '../types/masterCan'
+import type { UserCanStatusType } from '../types/userCanStatus'
 
 type DiscontinuedFilter = 'all' | 'active' | 'discontinued'
 
 export function MissingCansPage() {
+  const [searchParams] = useSearchParams()
   const { storageUserId } = useAuth()
   const { cans, add, remove, reload } = useCans(storageUserId)
   const { masterIds, reload: reloadWishlist } = useUserWishlist(storageUserId)
+  const { statusMap, reload: reloadStatus } = useUserCanStatus(storageUserId)
   const [brand, setBrand] = useState<MasterBrandFilter>('all')
   const [search, setSearch] = useState('')
   const [rarity, setRarity] = useState<Rarity | 'all'>('all')
   const [country, setCountry] = useState('all')
+  const [collectionSet, setCollectionSet] = useState('all')
   const [discontinued, setDiscontinued] = useState<DiscontinuedFilter>('all')
-  const [wantLoadingId, setWantLoadingId] = useState<string | null>(null)
+  const [wantedOnly, setWantedOnly] = useState(false)
+  const [neededOnly, setNeededOnly] = useState(false)
+  const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null)
+  const [communityCounts, setCommunityCounts] = useState<Record<string, MasterCanCommunityCounts>>({})
   const { masters, loading, error } = useMasterCans(brand)
+
+  useEffect(() => {
+    const setParam = searchParams.get('set')
+    if (setParam && COLLECTION_SETS.includes(setParam as (typeof COLLECTION_SETS)[number])) {
+      setCollectionSet(setParam)
+    }
+  }, [searchParams])
 
   const progress = useMemo(
     () => computeCollectionProgress(masters, cans, brand),
@@ -43,9 +58,11 @@ export function MissingCansPage() {
   )
 
   const countryOptions = useMemo(() => {
-    const values = new Set(
-      masters.map((m) => m.country).filter((c): c is string => Boolean(c)),
-    )
+    const values = new Set<string>()
+    for (const m of masters) {
+      const label = getVariantCountryLabel(m)
+      if (label) values.add(label)
+    }
     return [...values].sort()
   }, [masters])
 
@@ -54,6 +71,7 @@ export function MissingCansPage() {
       masters.filter((m) => m.active),
       cans,
       masterIds,
+      statusMap,
     )
     let items = withStatus.filter((m) => !m.owned)
 
@@ -65,7 +83,7 @@ export function MissingCansPage() {
           m.brand.toLowerCase().includes(q) ||
           (m.flavor?.toLowerCase().includes(q) ?? false) ||
           (m.variant_name?.toLowerCase().includes(q) ?? false) ||
-          (m.country?.toLowerCase().includes(q) ?? false) ||
+          (getVariantCountryLabel(m)?.toLowerCase().includes(q) ?? false) ||
           (m.barcode?.includes(q) ?? false),
       )
     }
@@ -75,7 +93,11 @@ export function MissingCansPage() {
     }
 
     if (country !== 'all') {
-      items = items.filter((m) => m.country === country)
+      items = items.filter((m) => getVariantCountryLabel(m) === country)
+    }
+
+    if (collectionSet !== 'all') {
+      items = items.filter((m) => getMasterCollectionSet(m) === collectionSet)
     }
 
     if (discontinued === 'active') {
@@ -84,24 +106,58 @@ export function MissingCansPage() {
       items = items.filter((m) => m.discontinued)
     }
 
-    return items.sort((a, b) => a.product_name.localeCompare(b.product_name))
-  }, [masters, cans, masterIds, search, rarity, country, discontinued])
+    if (wantedOnly) {
+      items = items.filter((m) => m.wanted)
+    }
 
-  const handleToggleWant = async (master: MasterCanWithStatus) => {
+    if (neededOnly) {
+      items = items.filter((m) => m.needed)
+    }
+
+    return items.sort((a, b) => a.product_name.localeCompare(b.product_name))
+  }, [
+    masters,
+    cans,
+    masterIds,
+    statusMap,
+    search,
+    rarity,
+    country,
+    collectionSet,
+    discontinued,
+    wantedOnly,
+    neededOnly,
+  ])
+
+  useEffect(() => {
+    if (missing.length === 0) {
+      setCommunityCounts({})
+      return
+    }
+    let active = true
+    void fetchCommunityCountsForMasters(missing.map((m) => m.id)).then((counts) => {
+      if (active) setCommunityCounts(counts)
+    })
+    return () => {
+      active = false
+    }
+  }, [missing])
+
+  const handleStatus = async (master: MasterCanWithStatus, status: UserCanStatusType) => {
     if (!storageUserId) return
-    setWantLoadingId(master.id)
+    setStatusLoadingId(master.id)
     try {
-      const existing = findWishlistEntryForMaster(master, cans)
-      if (existing || master.wanted) {
-        if (existing) await remove(existing.id)
-        await removeUserWishlist(storageUserId, master.id)
-      } else {
-        await addUserWishlist(storageUserId, master.id)
-        await add(masterCanToWishlistInsert(master))
-      }
-      await Promise.all([reload(), reloadWishlist()])
+      await toggleMasterCanStatus(master, status, master.userStatus, {
+        userId: storageUserId,
+        cans,
+        add,
+        remove,
+        reloadCans: reload,
+        reloadWishlist,
+        reloadStatus,
+      })
     } finally {
-      setWantLoadingId(null)
+      setStatusLoadingId(null)
     }
   }
 
@@ -109,11 +165,21 @@ export function MissingCansPage() {
     <Layout title="Missing Cans">
       <div className="flex flex-col gap-4">
         <p className="text-sm text-monster-muted">
-          Master database cans you don&apos;t own yet. Tap <strong>Want</strong> to add to your
-          wishlist.
+          Master database cans you don&apos;t own yet. Mark cans as{' '}
+          <strong className="text-white">Want</strong> or <strong className="text-white">Need</strong>,
+          or tap <strong className="text-white">Got it</strong> when you add one to your collection.
         </p>
 
         <CollectionProgressCard progress={progress} showLink={false} />
+
+        <div className="flex gap-3">
+          <Link to="/sets" className="text-xs text-monster-green hover:underline">
+            View collection sets →
+          </Link>
+          <Link to="/wishlist" className="text-xs text-monster-green hover:underline">
+            View wishlist →
+          </Link>
+        </div>
 
         <BrandFilter value={brand} onChange={setBrand} />
 
@@ -136,6 +202,19 @@ export function MissingCansPage() {
         </div>
 
         <Select
+          label="Collection set"
+          value={collectionSet}
+          onChange={(e) => setCollectionSet(e.target.value)}
+        >
+          <option value="all">All sets</option>
+          {COLLECTION_SETS.map((set) => (
+            <option key={set} value={set}>
+              {set}
+            </option>
+          ))}
+        </Select>
+
+        <Select
           label="Discontinued"
           value={discontinued}
           onChange={(e) => setDiscontinued(e.target.value as DiscontinuedFilter)}
@@ -145,6 +224,27 @@ export function MissingCansPage() {
           <option value="discontinued">Discontinued only</option>
         </Select>
 
+        <div className="flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-sm text-monster-muted">
+            <input
+              type="checkbox"
+              checked={wantedOnly}
+              onChange={(e) => setWantedOnly(e.target.checked)}
+              className="accent-monster-green"
+            />
+            Wanted only
+          </label>
+          <label className="flex items-center gap-2 text-sm text-monster-muted">
+            <input
+              type="checkbox"
+              checked={neededOnly}
+              onChange={(e) => setNeededOnly(e.target.checked)}
+              className="accent-monster-green"
+            />
+            Needed only
+          </label>
+        </div>
+
         <Input
           label="Search"
           value={search}
@@ -152,12 +252,7 @@ export function MissingCansPage() {
           placeholder="Name, brand, flavor, barcode..."
         />
 
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-monster-muted">{missing.length} missing</p>
-          <Link to="/wishlist" className="text-xs text-monster-green hover:underline">
-            View wishlist
-          </Link>
-        </div>
+        <p className="text-xs text-monster-muted">{missing.length} missing</p>
 
         {loading ? (
           <LoadingSpinner label="Loading master database..." />
@@ -180,8 +275,11 @@ export function MissingCansPage() {
                 key={can.id}
                 can={can}
                 showOwnedBadge={false}
-                wantLoading={wantLoadingId === can.id}
-                onToggleWant={handleToggleWant}
+                showStatusButtons
+                linkToDetail
+                statusLoading={statusLoadingId === can.id}
+                communityCounts={communityCounts[can.id]}
+                onStatus={handleStatus}
               />
             ))}
           </div>

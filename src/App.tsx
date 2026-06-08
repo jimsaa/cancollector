@@ -11,6 +11,9 @@ import { CanDetailPage } from './pages/CanDetailPage'
 import { TradePage } from './pages/TradePage'
 import { WishlistPage } from './pages/WishlistPage'
 import { MissingCansPage } from './pages/MissingCansPage'
+import { CollectionSetsPage } from './pages/CollectionSetsPage'
+import { LeaderboardPage } from './pages/LeaderboardPage'
+import { MasterCanDetailPage } from './pages/MasterCanDetailPage'
 import { TradeSharePage } from './pages/TradeSharePage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { LoginPage } from './pages/LoginPage'
@@ -30,6 +33,7 @@ import { AdminMonsterProductsImportPage } from './pages/AdminMonsterProductsImpo
 import { AdminImageReviewPage } from './pages/AdminImageReviewPage'
 import { FeedbackPage } from './pages/FeedbackPage'
 import { AdminFeedbackPage } from './pages/AdminFeedbackPage'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import {
   checkLocalImportState,
   logLocalImportCheck,
@@ -96,6 +100,9 @@ function AppRoutes() {
         <Route path="/add" element={<ProtectedRoute><ImportGate><AddCanPage /></ImportGate></ProtectedRoute>} />
         <Route path="/collection" element={<ProtectedRoute><ImportGate><CollectionPage /></ImportGate></ProtectedRoute>} />
         <Route path="/missing" element={<ProtectedRoute><ImportGate><MissingCansPage /></ImportGate></ProtectedRoute>} />
+        <Route path="/sets" element={<ProtectedRoute><ImportGate><CollectionSetsPage /></ImportGate></ProtectedRoute>} />
+        <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+        <Route path="/cans/:id" element={<ProtectedRoute><ImportGate><MasterCanDetailPage /></ImportGate></ProtectedRoute>} />
         <Route path="/wishlist" element={<ProtectedRoute><ImportGate><WishlistPage /></ImportGate></ProtectedRoute>} />
         <Route path="/can/:id" element={<ProtectedRoute><ImportGate><CanDetailPage /></ImportGate></ProtectedRoute>} />
         <Route path="/trade" element={<ProtectedRoute><ImportGate><TradePage /></ImportGate></ProtectedRoute>} />
@@ -109,6 +116,7 @@ function AppRoutes() {
         <Route path="/admin/master-cans" element={<AdminMasterCansPage />} />
         <Route path="/admin/master-catalog" element={<AdminMasterCatalogPage />} />
         <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
+        <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/image-review" element={<AdminImageReviewPage />} />
         <Route path="/admin/imports" element={<AdminImportsPage />} />
         <Route path="/admin/imports/monster-products" element={<AdminMonsterProductsImportPage />} />

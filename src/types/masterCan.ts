@@ -4,6 +4,8 @@ import type { MasterImageSource } from './masterImageSource'
 
 import type { ReferenceImageStatus } from './referenceImageStatus'
 
+import type { UserCanStatusType } from './userCanStatus'
+
 
 
 export const ENERGY_BRANDS = [
@@ -92,6 +94,24 @@ export interface MasterCan {
 
   category: string | null
 
+  collection_set: string | null
+
+  base_product_key: string | null
+
+  variant_country: string | null
+
+  variant_region: string | null
+
+  language_code: string | null
+
+  release_date: string | null
+
+  discontinued_date: string | null
+
+  catalog_date: string | null
+
+  collector_summary: string | null
+
   rarity: Rarity
 
   release_year: number | null
@@ -122,11 +142,24 @@ export interface CollectionProgress {
 
 
 
+export interface MasterCanCommunityCounts {
+  got: number
+  want: number
+  need: number
+}
+
 export interface MasterCanWithStatus extends MasterCan {
 
   owned: boolean
 
   wanted: boolean
+
+  needed: boolean
+
+  /** Explicit got marker from user_can_status (may match owned) */
+  markedGot: boolean
+
+  userStatus: UserCanStatusType | null
 
 }
 
