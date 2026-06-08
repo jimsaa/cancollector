@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { ArrowLeft, Crown, Globe, Upload } from 'lucide-react'
-import { APP_NAME } from '../constants/branding'
+import { ArrowLeft, Crown, Globe, Star, Upload } from 'lucide-react'
 import { Layout } from '../components/layout/Layout'
 import { SocialShareButtons } from '../components/profile/SocialShareButtons'
 import { Card } from '../components/ui/Card'
@@ -13,6 +12,9 @@ import { isUsernameAvailable } from '../lib/publicProfiles'
 import { normalizeUsernameInput, publicProfilePath, validateUsername } from '../lib/username'
 import { isPremiumActive } from '../lib/premium'
 import { formatSupabaseError } from '../lib/supabaseDebug'
+import { fetchCans } from '../lib/cans'
+import { Select } from '../components/ui/Select'
+import type { Can } from '../types/can'
 
 export function ProfileSettingsPage() {
   const { user, profile, isCloudSynced, isGuest, updateProfile, refreshProfile, premiumFeatures } =
@@ -25,6 +27,8 @@ export function ProfileSettingsPage() {
   const [country, setCountry] = useState('')
   const [isPublic, setIsPublic] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [featuredCanId, setFeaturedCanId] = useState<string | null>(null)
+  const [collectionCans, setCollectionCans] = useState<Can[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -38,7 +42,15 @@ export function ProfileSettingsPage() {
     setCountry(profile.country ?? '')
     setIsPublic(profile.is_public_profile)
     setAvatarUrl(profile.avatar_url)
+    setFeaturedCanId(profile.featured_can_id ?? null)
   }, [profile])
+
+  useEffect(() => {
+    if (!user || isGuest) return
+    void fetchCans(user.id)
+      .then((cans) => setCollectionCans(cans.filter((c) => !c.is_wishlist)))
+      .catch(() => setCollectionCans([]))
+  }, [user?.id, isGuest])
 
   if (isGuest) {
     return <Navigate to="/profile" replace />
@@ -91,12 +103,16 @@ export function ProfileSettingsPage() {
         }
       }
 
+      const validFeaturedId =
+        featuredCanId && collectionCans.some((c) => c.id === featuredCanId) ? featuredCanId : null
+
       await updateProfile({
         username: normalizedUsername || null,
         public_display_name: publicDisplayName.trim() || null,
         bio: bio.trim() || null,
         country: country.trim() || null,
         is_public_profile: isPublic,
+        featured_can_id: validFeaturedId,
       })
       await refreshProfile()
       setMessage('Profile settings saved')
@@ -209,6 +225,31 @@ export function ProfileSettingsPage() {
               />
             </label>
 
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <Star size={14} className="text-monster-green" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-monster-muted">
+                  Featured can
+                </p>
+              </div>
+              <Select
+                label=""
+                value={featuredCanId ?? ''}
+                onChange={(e) => setFeaturedCanId(e.target.value || null)}
+              >
+                <option value="">None — no featured can</option>
+                {collectionCans.map((can) => (
+                  <option key={can.id} value={can.id}>
+                    {can.name ?? 'Unknown can'}
+                    {can.country ? ` · ${can.country}` : ''}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-monster-muted">
+                One highlighted can on your public profile. Only you can change it.
+              </p>
+            </div>
+
             {message ? <p className="text-sm text-monster-green">{message}</p> : null}
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
@@ -226,8 +267,8 @@ export function ProfileSettingsPage() {
             </div>
             <SocialShareButtons
               username={profile.username}
+              collectedCount={collectionCans.reduce((sum, c) => sum + c.quantity, 0)}
               shareTitle={`${displayName}'s Can Collection`}
-              shareDescription={`Check out ${displayName}'s can collection on ${APP_NAME}`}
             />
           </Card>
         ) : null}

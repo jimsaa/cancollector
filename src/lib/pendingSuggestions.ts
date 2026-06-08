@@ -13,7 +13,11 @@ import {
   fetchLocalPendingSuggestions,
   updateLocalPendingSuggestion,
 } from './localPendingSuggestions'
-import { upsertLocalApprovedMasterCan, findLocalMasterByBarcode } from './localMasterCans'
+import {
+  findLocalExistingMaster,
+  upsertLocalApprovedMasterCan,
+  findLocalMasterByBarcode,
+} from './localMasterCans'
 import { linkUserCansToMasterByBarcode } from './masterCanLink'
 import { findMasterByBarcode } from './masterCanMatching'
 import { fetchActiveMasterCans } from './masterCans'
@@ -23,6 +27,7 @@ import { normalizeMasterCan } from './masterCanNormalize'
 import { buildMasterReferencePayload, toMasterCanReferenceFields } from './masterReferencePayload'
 import {
   formatMasterCanError,
+  isDuplicateKeyError,
   shouldRetryMasterCanWithoutExtendedColumns,
   stripExtendedMasterColumns,
 } from './masterCanSupabase'
@@ -186,6 +191,31 @@ export interface ApproveSuggestionInput {
   discontinued?: boolean
 }
 
+function isRealExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/** Only store real external URLs — never user_scan/OFF pseudo-links in source_url. */
+export function resolveMasterSourceUrl(
+  rawUrl: string | null | undefined,
+  source: string | null | undefined,
+): string | null {
+  const trimmed = rawUrl?.trim() ?? ''
+  if (!trimmed || !isRealExternalUrl(trimmed)) return null
+
+  const src = source ?? ''
+  if (src === 'user_scan' || src === 'open_food_facts' || src === 'master_database') {
+    return null
+  }
+
+  return trimmed
+}
+
 async function findCloudMasterBySourceUrl(sourceUrl: string): Promise<MasterCan | null> {
   const client = requireClient()
   const { data } = await client
@@ -196,12 +226,102 @@ async function findCloudMasterBySourceUrl(sourceUrl: string): Promise<MasterCan 
   return data ? normalizeMasterCan(data as MasterCan) : null
 }
 
+async function findCloudMasterByBarcode(barcode: string): Promise<MasterCan | null> {
+  const client = requireClient()
+  const { data } = await client
+    .from('master_cans')
+    .select('*')
+    .eq('barcode', barcode.trim())
+    .maybeSingle()
+  return data ? normalizeMasterCan(data as MasterCan) : null
+}
+
+async function findCloudMasterByNameBrand(
+  brand: string,
+  productName: string,
+): Promise<MasterCan | null> {
+  const client = requireClient()
+  const { data } = await client
+    .from('master_cans')
+    .select('*')
+    .ilike('brand', brand.trim())
+    .ilike('product_name', productName.trim())
+    .limit(1)
+  const row = data?.[0]
+  return row ? normalizeMasterCan(row as MasterCan) : null
+}
+
+async function findExistingCloudMasterCan(
+  master: ApproveSuggestionInput,
+  sourceUrl: string | null,
+): Promise<MasterCan | null> {
+  const barcode = master.barcode?.trim() ?? null
+
+  if (barcode) {
+    const byBarcode = await findCloudMasterByBarcode(barcode)
+    if (byBarcode) return byBarcode
+  }
+
+  if (sourceUrl) {
+    const byUrl = await findCloudMasterBySourceUrl(sourceUrl)
+    if (byUrl) return byUrl
+  }
+
+  const brand = master.brand?.trim()
+  const productName = master.product_name?.trim()
+  if (brand && productName) {
+    return findCloudMasterByNameBrand(brand, productName)
+  }
+
+  return null
+}
+
 function normalizeMasterSource(source: string | null | undefined): string | null {
   if (!source) return null
   if (source === 'user_scan' || source === 'open_food_facts' || source === 'master_database') {
     return 'manual'
   }
   return source
+}
+
+function buildMasterCanPayload(
+  master: ApproveSuggestionInput,
+  sourceUrl: string | null,
+  adminApproved: boolean,
+): Record<string, unknown> {
+  const barcode = master.barcode?.trim() ?? null
+  const referenceFields = toMasterCanReferenceFields(
+    buildMasterReferencePayload({
+      reference_image_url: master.reference_image_url,
+      image_url: master.image_url,
+      image_source: master.image_source,
+      source: master.source,
+      adminApproved,
+    }),
+  )
+
+  const payload: Record<string, unknown> = {
+    brand: master.brand,
+    product_name: master.product_name,
+    flavor: master.flavor ?? null,
+    variant_name: master.variant_name ?? null,
+    volume: master.volume ?? null,
+    country: master.country ?? null,
+    category: master.category ?? null,
+    barcode,
+    ...referenceFields,
+    source: normalizeMasterSource(master.source),
+    rarity: master.rarity ?? 'unknown',
+    release_year: master.release_year ?? null,
+    discontinued: master.discontinued ?? false,
+    active: true,
+  }
+
+  if (sourceUrl) {
+    payload.source_url = sourceUrl
+  }
+
+  return payload
 }
 
 async function writeCloudMasterCan(
@@ -235,67 +355,134 @@ async function writeCloudMasterCan(
   throw new Error('Failed to save master can')
 }
 
+interface UpsertCloudMasterResult {
+  master: MasterCan
+  updatedExisting: boolean
+}
+
 async function upsertCloudMasterCan(
   master: ApproveSuggestionInput,
+  suggestion?: PendingCanSuggestion,
   adminApproved = true,
-): Promise<MasterCan> {
-  const barcode = master.barcode?.trim() ?? null
-  const sourceUrl = master.source_url?.trim() ?? null
+): Promise<UpsertCloudMasterResult> {
+  const rawSourceUrl =
+    master.source_url ?? suggestion?.source_url ?? suggestion?.product_page_url ?? null
+  const sourceUrl = resolveMasterSourceUrl(rawSourceUrl, master.source ?? suggestion?.source)
+  const payload = buildMasterCanPayload(master, sourceUrl, adminApproved)
 
-  const referenceFields = toMasterCanReferenceFields(
-    buildMasterReferencePayload({
-      reference_image_url: master.reference_image_url,
-      image_url: master.image_url,
-      image_source: master.image_source,
-      source: master.source,
-      adminApproved,
-    }),
-  )
+  let existing = await findExistingCloudMasterCan(master, sourceUrl)
 
-  const payload: Record<string, unknown> = {
-    brand: master.brand,
-    product_name: master.product_name,
-    flavor: master.flavor ?? null,
-    variant_name: master.variant_name ?? null,
-    volume: master.volume ?? null,
-    country: master.country ?? null,
-    category: master.category ?? null,
-    barcode,
-    ...referenceFields,
-    source: normalizeMasterSource(master.source),
-    source_url: sourceUrl,
-    rarity: master.rarity ?? 'unknown',
-    release_year: master.release_year ?? null,
-    discontinued: master.discontinued ?? false,
-    active: true,
+  if (existing) {
+    const updated = await writeCloudMasterCan(payload, { type: 'id', id: existing.id })
+    return { master: updated, updatedExisting: true }
   }
 
-  if (sourceUrl) {
-    const existingByUrl = await findCloudMasterBySourceUrl(sourceUrl)
-    if (existingByUrl) {
-      return writeCloudMasterCan(payload, { type: 'id', id: existingByUrl.id })
+  try {
+    const inserted = await writeCloudMasterCan(payload, { type: 'insert' })
+    return { master: inserted, updatedExisting: false }
+  } catch (err) {
+    if (!isDuplicateKeyError(err)) throw err
+
+    existing = await findExistingCloudMasterCan(master, sourceUrl)
+    if (!existing && sourceUrl) {
+      existing = await findCloudMasterBySourceUrl(sourceUrl)
     }
-  }
 
-  if (barcode) {
-    const client = requireClient()
-    const { data: existing } = await client
-      .from('master_cans')
-      .select('id')
-      .eq('barcode', barcode)
-      .maybeSingle()
-
-    if (existing?.id) {
-      return writeCloudMasterCan(payload, { type: 'id', id: existing.id as string })
+    if (!existing) {
+      const insertPayload = { ...payload }
+      delete insertPayload.source_url
+      try {
+        const inserted = await writeCloudMasterCan(insertPayload, { type: 'insert' })
+        return { master: inserted, updatedExisting: false }
+      } catch (retryErr) {
+        if (!isDuplicateKeyError(retryErr)) throw retryErr
+        existing = await findExistingCloudMasterCan(master, null)
+      }
     }
-  }
 
-  return writeCloudMasterCan(payload, { type: 'insert' })
+    if (!existing) throw err
+
+    const updatePayload = { ...payload }
+    if (!sourceUrl) delete updatePayload.source_url
+
+    const updated = await writeCloudMasterCan(updatePayload, { type: 'id', id: existing.id })
+    return { master: updated, updatedExisting: true }
+  }
 }
 
 export interface ApproveSuggestionResult {
   master: MasterCan
   linkedCans: number
+  updatedExisting: boolean
+}
+
+export interface ApproveAllBatchResult {
+  approved: number
+  updated: number
+  skipped: number
+  failed: number
+  errors: string[]
+}
+
+export function buildApproveInputFromSuggestion(
+  suggestion: PendingCanSuggestion,
+  overrides?: Partial<ApproveSuggestionInput>,
+): ApproveSuggestionInput {
+  const isOfficial = suggestion.source === 'official_site'
+  return {
+    brand: suggestion.brand ?? (isOfficial ? 'Monster Energy' : 'Monster'),
+    product_name: suggestion.product_name ?? '',
+    flavor: suggestion.flavor ?? '',
+    variant_name: suggestion.variant_name ?? suggestion.flavor ?? '',
+    volume: suggestion.volume ?? '',
+    country: suggestion.country ?? (isOfficial ? 'US' : ''),
+    category: suggestion.category ?? '',
+    barcode: suggestion.barcode ?? '',
+    reference_image_url: suggestion.image_url,
+    image_url: suggestion.image_url,
+    image_source: isOfficial ? 'official_site' : suggestion.source === 'open_food_facts' ? 'open_food_facts' : 'manual',
+    source: suggestion.source,
+    source_url: suggestion.source_url ?? suggestion.product_page_url ?? '',
+    rarity: 'unknown',
+    release_year: null,
+    discontinued: false,
+    ...overrides,
+  }
+}
+
+export async function approveAllOfficialPending(): Promise<ApproveAllBatchResult> {
+  const pending = await fetchPendingSuggestions('pending')
+  const official = pending.filter((row) => row.source === 'official_site')
+
+  const result: ApproveAllBatchResult = {
+    approved: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    errors: [],
+  }
+
+  for (const suggestion of official) {
+    const name = suggestion.product_name?.trim()
+    const brand = suggestion.brand?.trim()
+    if (!name || !brand) {
+      result.skipped++
+      continue
+    }
+
+    try {
+      const input = buildApproveInputFromSuggestion(suggestion)
+      const approval = await approvePendingSuggestion(suggestion, input)
+      if (approval.updatedExisting) result.updated++
+      else result.approved++
+    } catch (err) {
+      result.failed++
+      const label = suggestion.product_name ?? suggestion.id
+      result.errors.push(`${label}: ${formatMasterCanError(err, 'Approve failed')}`)
+    }
+  }
+
+  return result
 }
 
 export async function approvePendingSuggestion(
@@ -304,6 +491,8 @@ export async function approvePendingSuggestion(
 ): Promise<ApproveSuggestionResult> {
   let approvedMaster: MasterCan
   const barcode = master.barcode?.trim() ?? ''
+
+  let updatedExisting = false
 
   if (useLocalPendingStore()) {
     const referenceFields = toMasterCanReferenceFields(
@@ -316,6 +505,18 @@ export async function approvePendingSuggestion(
       }),
     )
 
+    const sourceUrl = resolveMasterSourceUrl(
+      master.source_url ?? suggestion.source_url ?? suggestion.product_page_url,
+      master.source ?? suggestion.source,
+    )
+
+    const beforeId = findLocalExistingMaster({
+      barcode: barcode || null,
+      sourceUrl,
+      brand: master.brand,
+      product_name: master.product_name,
+    })?.id
+
     approvedMaster = await upsertLocalApprovedMasterCan({
       id: generateId(),
       brand: master.brand,
@@ -327,16 +528,19 @@ export async function approvePendingSuggestion(
       category: master.category ?? null,
       barcode: barcode || null,
       ...referenceFields,
-      source: master.source ?? suggestion.source ?? null,
-      source_url: master.source_url ?? suggestion.source_url ?? suggestion.product_page_url ?? null,
+      source: normalizeMasterSource(master.source ?? suggestion.source),
+      source_url: sourceUrl,
       rarity: master.rarity ?? 'unknown',
       release_year: master.release_year ?? null,
       discontinued: master.discontinued ?? false,
       active: true,
     })
+    updatedExisting = Boolean(beforeId)
     updateLocalPendingSuggestion(suggestion.id, { status: 'approved' })
   } else {
-    approvedMaster = await upsertCloudMasterCan(master)
+    const result = await upsertCloudMasterCan(master, suggestion)
+    approvedMaster = result.master
+    updatedExisting = result.updatedExisting
 
     const client = requireClient()
     const { error: updateError } = await client
@@ -347,11 +551,12 @@ export async function approvePendingSuggestion(
     if (updateError) throw updateError
   }
 
-  const linkedCans = barcode
-    ? await linkUserCansToMasterByBarcode(barcode, approvedMaster.id)
+  const linkBarcode = (approvedMaster.barcode ?? barcode).trim()
+  const linkedCans = linkBarcode
+    ? await linkUserCansToMasterByBarcode(linkBarcode, approvedMaster.id)
     : 0
 
-  return { master: approvedMaster, linkedCans }
+  return { master: approvedMaster, linkedCans, updatedExisting }
 }
 
 /** Reject suggestion only — user collection cans are untouched. */

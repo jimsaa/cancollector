@@ -3,6 +3,8 @@ import type { PublicProfile, PublicProfileStats } from '../types/profile'
 import type { TradeListing } from '../types/trade'
 import { computeCollectionProgress } from './collectionProgress'
 import { computeStats } from './cans'
+import { computeDuplicateExtras } from './collectorStats'
+import { normalizeKey } from './duplicates'
 import { fetchMasterCans } from './masterCans'
 import { normalizeCanRecord } from './tradeFields'
 import { normalizeListing } from './tradeListings'
@@ -27,12 +29,13 @@ function normalizePublicProfile(raw: Record<string, unknown>): PublicProfile | n
     is_public_profile: Boolean(raw.is_public_profile),
     premium_status: (raw.premium_status as PublicProfile['premium_status']) ?? 'free',
     premium_until: (raw.premium_until as string | null) ?? null,
+    featured_can_id: (raw.featured_can_id as string | null) ?? null,
     created_at: raw.created_at as string,
   }
 }
 
 const PUBLIC_PROFILE_SELECT =
-  'id, username, public_display_name, bio, country, avatar_url, is_public_profile, premium_status, premium_until, created_at'
+  'id, username, public_display_name, bio, country, avatar_url, is_public_profile, premium_status, premium_until, featured_can_id, created_at'
 
 function isRpcUnavailableError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
@@ -138,11 +141,25 @@ export async function fetchPublicTradeListings(userId: string): Promise<TradeLis
   }
 }
 
-export async function computePublicProfileStats(_userId: string, cans: Can[]): Promise<PublicProfileStats> {
+export async function computePublicProfileStats(
+  _userId: string,
+  cans: Can[],
+  activeTradeListings = 0,
+): Promise<PublicProfileStats> {
   const collection = cans.filter((c) => !c.is_wishlist)
   const stats = computeStats(cans)
   const wishlistCount = cans.filter((c) => c.is_wishlist).length
   const tradeCount = collection.filter((c) => c.available_for_trade).length
+
+  const countries = new Set(
+    collection.map((c) => normalizeKey(c.country)).filter((c) => c.length > 0),
+  )
+  const brands = new Set(
+    collection.map((c) => normalizeKey(c.brand)).filter((b) => b.length > 0),
+  )
+  const rareCans = collection
+    .filter((c) => c.rarity === 'rare' || c.rarity === 'uncommon')
+    .reduce((sum, c) => sum + c.quantity, 0)
 
   let completionPercentage = 0
   let completionOwned = 0
@@ -163,10 +180,20 @@ export async function computePublicProfileStats(_userId: string, cans: Can[]): P
     unopenedCount: stats.unopened,
     tradeCount,
     wishlistCount,
+    activeTradeListings,
+    countriesRepresented: countries.size,
+    brandsCollected: brands.size,
+    duplicates: computeDuplicateExtras(cans),
+    rareCans,
     completionPercentage,
     completionOwned,
     completionTotal,
   }
+}
+
+export function resolveFeaturedCan(cans: Can[], featuredCanId: string | null): Can | null {
+  if (!featuredCanId) return null
+  return cans.find((c) => c.id === featuredCanId && !c.is_wishlist) ?? null
 }
 
 export function getPublicDisplayName(profile: PublicProfile): string {

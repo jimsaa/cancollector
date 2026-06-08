@@ -9,6 +9,11 @@ export function getPublicProfileShareUrl(username: string): string {
   return getAbsoluteUrl(`/u/${encodeURIComponent(username.toLowerCase())}`)
 }
 
+export function getPublicProfileShareText(username: string, collectedCount: number): string {
+  const url = getPublicProfileShareUrl(username)
+  return `Check out my CanTrove collection:\n${url}\n${collectedCount} cans collected.`
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)

@@ -9,6 +9,7 @@ const PUBLIC_PROFILE_COLUMNS = [
   'country',
   'avatar_url',
   'is_public_profile',
+  'featured_can_id',
 ] as const
 
 function isMissingColumnError(err: unknown): boolean {
@@ -21,7 +22,7 @@ function isMissingColumnError(err: unknown): boolean {
 
 function formatProfileError(err: unknown, fallback = 'Could not save profile'): string {
   if (isMissingColumnError(err)) {
-    return 'Profile settings are not available yet — run supabase/migration-public-profiles.sql in your Supabase SQL editor, then try again.'
+    return 'Profile settings are not available yet — run supabase/migration-public-profiles.sql and migration-featured-can.sql in your Supabase SQL editor, then try again.'
   }
   return formatSupabaseError(err, fallback)
 }
@@ -57,6 +58,7 @@ function normalizeProfile(raw: Record<string, unknown>): Profile {
     country: (raw.country as string | null) ?? null,
     avatar_url: (raw.avatar_url as string | null) ?? null,
     is_public_profile: Boolean(raw.is_public_profile),
+    featured_can_id: (raw.featured_can_id as string | null) ?? null,
   }
 }
 

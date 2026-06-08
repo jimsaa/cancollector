@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Check, ExternalLink, Lock, LogOut, Pencil, RefreshCw, Shield, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCheck, ExternalLink, Lock, LogOut, Pencil, RefreshCw, Shield, X } from 'lucide-react'
+import { AdminApproveFormFields } from '../components/admin/AdminApproveFormFields'
+import { AdminApproveModal } from '../components/admin/AdminApproveModal'
 import { Layout } from '../components/layout/Layout'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { Select } from '../components/ui/Select'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAuth } from '../hooks/useAuth'
@@ -20,14 +21,16 @@ import {
   fetchOfficialImportPending,
   syncOfficialProductsToPendingQueue,
 } from '../lib/officialProductImport'
+import { formatApproveAllSummary, formatApproveSuggestionMessage } from '../lib/approveSuggestionMessages'
 import {
+  approveAllOfficialPending,
   approvePendingSuggestion,
+  buildApproveInputFromSuggestion,
   rejectPendingSuggestion,
   type ApproveSuggestionInput,
 } from '../lib/pendingSuggestions'
 import type { OfficialProductImportFile } from '../types/officialProductImport'
 import type { PendingCanSuggestion } from '../types/pendingSuggestion'
-import type { Rarity } from '../types/can'
 
 export function AdminMonsterProductsImportPage() {
   const { profile, loading: authLoading, isGuest, isConfigured } = useAuth()
@@ -43,6 +46,7 @@ export function AdminMonsterProductsImportPage() {
   const [form, setForm] = useState<ApproveSuggestionInput | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [approvingAll, setApprovingAll] = useState(false)
 
   const access = getAdminAccessState({
     loading: authLoading,
@@ -103,24 +107,25 @@ export function AdminMonsterProductsImportPage() {
 
   const openEdit = (suggestion: PendingCanSuggestion) => {
     setEditing(suggestion)
-    setForm({
-      brand: suggestion.brand ?? 'Monster Energy',
-      product_name: suggestion.product_name ?? '',
-      flavor: suggestion.flavor ?? '',
-      variant_name: suggestion.variant_name ?? suggestion.flavor ?? '',
-      volume: suggestion.volume ?? '',
-      country: suggestion.country ?? 'US',
-      category: suggestion.category ?? '',
-      barcode: suggestion.barcode ?? '',
-      reference_image_url: suggestion.image_url,
-      image_url: suggestion.image_url,
-      image_source: 'official_site',
-      source: 'official_site',
-      source_url: suggestion.source_url ?? suggestion.product_page_url ?? '',
-      rarity: 'unknown',
-      release_year: null,
-      discontinued: false,
-    })
+    setForm(buildApproveInputFromSuggestion(suggestion))
+  }
+
+  const handleApproveAll = async () => {
+    if (suggestions.length === 0) return
+    if (!window.confirm('Approve all pending official imports?')) return
+
+    setApprovingAll(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const result = await approveAllOfficialPending()
+      setSuccess(formatApproveAllSummary(result))
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Approve all failed')
+    } finally {
+      setApprovingAll(false)
+    }
   }
 
   const handleApprove = async () => {
@@ -130,9 +135,7 @@ export function AdminMonsterProductsImportPage() {
     setSuccess(null)
     try {
       const result = await approvePendingSuggestion(editing, form)
-      setSuccess(
-        `Approved "${result.master.product_name}" into master_cans.${result.linkedCans > 0 ? ` Linked ${result.linkedCans} user can(s).` : ''}`,
-      )
+      setSuccess(formatApproveSuggestionMessage(result))
       setEditing(null)
       setForm(null)
       await load()
@@ -293,7 +296,20 @@ export function AdminMonsterProductsImportPage() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="text-xs text-monster-muted">{suggestions.length} pending official imports</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-monster-muted">
+                {suggestions.length} pending official imports
+              </p>
+              <Button
+                className="py-2 text-xs"
+                loading={approvingAll}
+                disabled={Boolean(actionId) || approvingAll}
+                onClick={() => void handleApproveAll()}
+              >
+                <CheckCheck size={14} />
+                Approve All Pending
+              </Button>
+            </div>
             {suggestions.map((suggestion) => (
               <Card key={suggestion.id} className="p-4">
                 <div className="flex gap-3">
@@ -370,105 +386,24 @@ export function AdminMonsterProductsImportPage() {
           </div>
         )}
 
-        {editing && form ? (
-          <Card className="fixed inset-x-4 bottom-4 z-50 max-h-[80vh] overflow-y-auto border-monster-green/40 p-4 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2">
-            <p className="mb-3 font-semibold text-white">Edit before approval</p>
-            <div className="flex flex-col gap-3">
-              <Input
-                label="Product name"
-                value={form.product_name}
-                onChange={(e) => setForm({ ...form, product_name: e.target.value })}
-              />
-              <Input
-                label="Brand"
-                value={form.brand}
-                onChange={(e) => setForm({ ...form, brand: e.target.value })}
-              />
-              <Input
-                label="Category"
-                value={form.category ?? ''}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              />
-              <Input
-                label="Flavor / variant"
-                value={form.flavor ?? ''}
-                onChange={(e) => setForm({ ...form, flavor: e.target.value, variant_name: e.target.value })}
-              />
-              <Input
-                label="Volume"
-                value={form.volume ?? ''}
-                onChange={(e) => setForm({ ...form, volume: e.target.value })}
-              />
-              <Input
-                label="Country"
-                value={form.country ?? ''}
-                onChange={(e) => setForm({ ...form, country: e.target.value })}
-              />
-              <Select
-                label="Rarity"
-                value={form.rarity ?? 'unknown'}
-                onChange={(e) => setForm({ ...form, rarity: e.target.value as Rarity })}
-              >
-                <option value="unknown">Unknown</option>
-                <option value="common">Common</option>
-                <option value="uncommon">Uncommon</option>
-                <option value="rare">Rare</option>
-              </Select>
-              <Input
-                label="Barcode (optional)"
-                value={form.barcode ?? ''}
-                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                placeholder="Add later if unknown"
-              />
-              <Input
-                label="Reference image URL (external)"
-                value={form.reference_image_url ?? form.image_url ?? ''}
-                onChange={(e) =>
-                  setForm({ ...form, reference_image_url: e.target.value, image_url: e.target.value })
-                }
-                placeholder="https://..."
-              />
-              <Select
-                label="Reference image source"
-                value={form.image_source ?? 'official_site'}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    image_source: e.target.value as ApproveSuggestionInput['image_source'],
-                  })
-                }
-              >
-                <option value="official_site">Official site</option>
-                <option value="manual">Manual</option>
-                <option value="open_food_facts">Open Food Facts</option>
-                <option value="seed">Seed</option>
-                <option value="placeholder">Placeholder</option>
-              </Select>
-              <Input
-                label="Source URL"
-                value={form.source_url ?? ''}
-                onChange={(e) => setForm({ ...form, source_url: e.target.value })}
-              />
-              <label className="flex items-center gap-2 text-sm text-white">
-                <input
-                  type="checkbox"
-                  checked={form.discontinued ?? false}
-                  onChange={(e) => setForm({ ...form, discontinued: e.target.checked })}
-                  className="accent-monster-green"
-                />
-                Discontinued
-              </label>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={() => { setEditing(null); setForm(null) }}>
-                Cancel
-              </Button>
-              <Button loading={actionId === editing.id} onClick={() => void handleApprove()}>
-                Approve to master_cans
-              </Button>
-            </div>
-          </Card>
-        ) : null}
+        <AdminApproveModal
+          open={Boolean(editing && form)}
+          title="Edit before approval"
+          approving={Boolean(editing && actionId === editing.id)}
+          onClose={() => {
+            setEditing(null)
+            setForm(null)
+          }}
+          onApprove={() => void handleApprove()}
+        >
+          {form ? (
+            <AdminApproveFormFields
+              form={form}
+              onChange={setForm}
+              imageSourceNote="Official product images are external references. Do not re-host unless you have permission."
+            />
+          ) : null}
+        </AdminApproveModal>
       </div>
     </Layout>
   )

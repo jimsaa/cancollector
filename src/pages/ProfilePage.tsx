@@ -12,7 +12,6 @@ import {
   Share2,
   UserPlus,
 } from 'lucide-react'
-import { APP_NAME } from '../constants/branding'
 import { Layout } from '../components/layout/Layout'
 import { SocialShareButtons } from '../components/profile/SocialShareButtons'
 import { Card } from '../components/ui/Card'
@@ -21,6 +20,7 @@ import { Button } from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
 import { checkLocalImportState, resetImportPrompt } from '../lib/localImport'
 import { getPublicDisplayName } from '../lib/publicProfiles'
+import { fetchCans } from '../lib/cans'
 
 export function ProfilePage() {
   const {
@@ -45,9 +45,21 @@ export function ProfilePage() {
     setDisplayName(profile?.display_name ?? '')
   }, [profile?.display_name])
 
+  useEffect(() => {
+    if (!user || !isCloudSynced || !profile?.is_public_profile) return
+    void fetchCans(user.id)
+      .then((cans) =>
+        setCollectedCount(
+          cans.filter((c) => !c.is_wishlist).reduce((sum, c) => sum + c.quantity, 0),
+        ),
+      )
+      .catch(() => setCollectedCount(0))
+  }, [user?.id, isCloudSynced, profile?.is_public_profile])
+
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [collectedCount, setCollectedCount] = useState(0)
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,6 +94,7 @@ export function ProfilePage() {
           is_public_profile: true,
           premium_status: profile.premium_status,
           premium_until: profile.premium_until,
+          featured_can_id: profile.featured_can_id,
           created_at: profile.created_at,
         })
       : null
@@ -184,8 +197,8 @@ export function ProfilePage() {
             </div>
             <SocialShareButtons
               username={profile.username}
+              collectedCount={collectedCount}
               shareTitle={`${publicName}'s Can Collection`}
-              shareDescription={`${publicName}'s can collection on ${APP_NAME}`}
             />
           </Card>
         ) : null}

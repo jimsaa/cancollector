@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Shield, Check, X, Pencil, Lock } from 'lucide-react'
+import { AdminApproveFormFields } from '../components/admin/AdminApproveFormFields'
+import { AdminApproveModal } from '../components/admin/AdminApproveModal'
 import { AdminHubNav } from '../components/admin/AdminHubNav'
 import { Layout } from '../components/layout/Layout'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { Select } from '../components/ui/Select'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAuth } from '../hooks/useAuth'
@@ -18,13 +19,14 @@ import {
 } from '../lib/adminAuth'
 import {
   approvePendingSuggestion,
+  buildApproveInputFromSuggestion,
   fetchPendingSuggestions,
   rejectPendingSuggestion,
   type ApproveSuggestionInput,
 } from '../lib/pendingSuggestions'
+import { formatApproveSuggestionMessage } from '../lib/approveSuggestionMessages'
 import { formatMasterCanError } from '../lib/masterCanSupabase'
 import type { PendingCanSuggestion } from '../types/pendingSuggestion'
-import type { Rarity } from '../types/can'
 
 export function AdminMasterCansPage() {
   const { profile, loading: authLoading, isGuest, isConfigured } = useAuth()
@@ -77,24 +79,7 @@ export function AdminMasterCansPage() {
 
   const openEdit = (suggestion: PendingCanSuggestion) => {
     setEditing(suggestion)
-    setForm({
-      brand: suggestion.brand ?? 'Monster',
-      product_name: suggestion.product_name ?? '',
-      flavor: suggestion.flavor ?? '',
-      variant_name: suggestion.variant_name ?? '',
-      volume: suggestion.volume ?? '',
-      country: suggestion.country ?? '',
-      category: suggestion.category ?? '',
-      barcode: suggestion.barcode ?? '',
-      reference_image_url: suggestion.image_url,
-      image_url: suggestion.image_url,
-      image_source: suggestion.source === 'official_site' ? 'official_site' : 'manual',
-      source: suggestion.source,
-      source_url: suggestion.source_url ?? suggestion.product_page_url ?? '',
-      rarity: 'unknown',
-      release_year: null,
-      discontinued: false,
-    })
+    setForm(buildApproveInputFromSuggestion(suggestion))
   }
 
   const handleApprove = async () => {
@@ -104,9 +89,7 @@ export function AdminMasterCansPage() {
     setSuccess(null)
     try {
       const result = await approvePendingSuggestion(editing, form)
-      setSuccess(
-        `Approved "${result.master.product_name}". Linked ${result.linkedCans} user can${result.linkedCans === 1 ? '' : 's'}.`,
-      )
+      setSuccess(formatApproveSuggestionMessage(result))
       setEditing(null)
       setForm(null)
       await load()
@@ -291,103 +274,26 @@ export function AdminMasterCansPage() {
           </div>
         )}
 
-        {editing && form ? (
-          <Card className="fixed inset-x-4 bottom-4 z-50 max-h-[80vh] overflow-y-auto border-monster-green/40 p-4 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:w-full sm:max-w-md sm:-translate-x-1/2">
-            <p className="mb-3 font-semibold text-white">Edit before approval</p>
-            <div className="flex flex-col gap-3">
-              <Input
-                label="Product name"
-                value={form.product_name}
-                onChange={(e) => setForm({ ...form, product_name: e.target.value })}
-              />
-              <Input
-                label="Brand"
-                value={form.brand}
-                onChange={(e) => setForm({ ...form, brand: e.target.value })}
-              />
-              <Input
-                label="Category"
-                value={form.category ?? ''}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              />
-              <Input
-                label="Flavor"
-                value={form.flavor ?? ''}
-                onChange={(e) => setForm({ ...form, flavor: e.target.value })}
-              />
-              <Input
-                label="Volume"
-                value={form.volume ?? ''}
-                onChange={(e) => setForm({ ...form, volume: e.target.value })}
-              />
-              <Input
-                label="Country"
-                value={form.country ?? ''}
-                onChange={(e) => setForm({ ...form, country: e.target.value })}
-              />
-              <Select
-                label="Rarity"
-                value={form.rarity ?? 'unknown'}
-                onChange={(e) => setForm({ ...form, rarity: e.target.value as Rarity })}
-              >
-                <option value="unknown">Unknown</option>
-                <option value="common">Common</option>
-                <option value="uncommon">Uncommon</option>
-                <option value="rare">Rare</option>
-              </Select>
-              <Input
-                label="Barcode"
-                value={form.barcode ?? ''}
-                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-              />
-              <Input
-                label="Reference image URL (external)"
-                value={form.reference_image_url ?? form.image_url ?? ''}
-                onChange={(e) =>
-                  setForm({ ...form, reference_image_url: e.target.value, image_url: e.target.value })
-                }
-                placeholder="https://..."
-              />
-              <Select
-                label="Reference image source"
-                value={form.image_source ?? 'manual'}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    image_source: e.target.value as ApproveSuggestionInput['image_source'],
-                  })
-                }
-              >
-                <option value="official_site">Official site</option>
-                <option value="manual">Manual</option>
-                <option value="open_food_facts">Open Food Facts</option>
-                <option value="seed">Seed</option>
-                <option value="placeholder">Placeholder</option>
-              </Select>
-              <p className="-mt-2 text-[10px] text-monster-muted">
-                Official product images are external references. Do not re-host unless you have
-                permission.
-              </p>
-              <label className="flex items-center gap-2 text-sm text-white">
-                <input
-                  type="checkbox"
-                  checked={form.discontinued ?? false}
-                  onChange={(e) => setForm({ ...form, discontinued: e.target.checked })}
-                  className="accent-monster-green"
-                />
-                Discontinued
-              </label>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={() => { setEditing(null); setForm(null) }}>
-                Cancel
-              </Button>
-              <Button loading={actionId === editing.id} onClick={() => void handleApprove()}>
-                Approve
-              </Button>
-            </div>
-          </Card>
-        ) : null}
+        <AdminApproveModal
+          open={Boolean(editing && form)}
+          title="Edit before approval"
+          approveLabel="Approve to master_cans"
+          approving={Boolean(editing && actionId === editing.id)}
+          onClose={() => {
+            setEditing(null)
+            setForm(null)
+          }}
+          onApprove={() => void handleApprove()}
+        >
+          {form ? (
+            <AdminApproveFormFields
+              form={form}
+              onChange={setForm}
+              showSourceUrl={false}
+              imageSourceNote="Official product images are external references. Do not re-host unless you have permission."
+            />
+          ) : null}
+        </AdminApproveModal>
       </div>
     </Layout>
   )
