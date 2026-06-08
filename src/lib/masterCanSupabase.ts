@@ -148,11 +148,26 @@ export function isDuplicateKeyError(err: unknown): boolean {
 
 /** Empty strings violate master_cans_barcode_unique_idx — only persist real barcodes. */
 
+const PLACEHOLDER_BARCODES = new Set(['empty', 'n/a', 'na', 'none', 'null', 'unknown', 'tbd'])
+
+function isRawPlaceholderBarcode(barcode: string): boolean {
+  return PLACEHOLDER_BARCODES.has(barcode.toLowerCase())
+}
+
+export function isPlaceholderBarcode(barcode: string | null | undefined): boolean {
+  const trimmed = barcode?.trim()
+  if (!trimmed) return false
+  return isRawPlaceholderBarcode(trimmed)
+}
+
 export function normalizeMasterBarcode(barcode: string | null | undefined): string | null {
 
   const trimmed = barcode?.trim()
 
-  return trimmed ? trimmed : null
+  if (!trimmed) return null
+  if (isRawPlaceholderBarcode(trimmed)) return null
+
+  return trimmed
 
 }
 

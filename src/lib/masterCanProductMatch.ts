@@ -74,6 +74,15 @@ export function isBarcodelessMaster(master: MasterCan): boolean {
   return !normalizeMasterBarcode(master.barcode)
 }
 
+/** Catalog rows eligible for OFF name matching (no real barcode yet). */
+export function isEligibleForNameMatch(master: MasterCan, scannedBarcode?: string): boolean {
+  const code = normalizeMasterBarcode(master.barcode)
+  if (!code) return true
+  const scanned = scannedBarcode?.trim()
+  if (scanned && code === scanned) return true
+  return false
+}
+
 function stripBrandFromName(productName: string, brand?: string | null): string {
   let name = normalizeText(productName)
   const brandNorm = normalizeText(brand)
@@ -207,13 +216,14 @@ export function scoreMasterProductMatch(
 export function findBarcodelessMasterMatches(
   masters: MasterCan[],
   input: ProductMatchInput,
-  options?: { limit?: number; minScore?: number },
+  options?: { limit?: number; minScore?: number; scannedBarcode?: string },
 ): MasterCanProductMatch[] {
   const limit = options?.limit ?? 3
   const minScore = options?.minScore ?? MIN_MATCH_SCORE
+  const scannedBarcode = options?.scannedBarcode
 
   return masters
-    .filter(isBarcodelessMaster)
+    .filter((master) => isEligibleForNameMatch(master, scannedBarcode))
     .map((master) => scoreMasterProductMatch(master, input))
     .filter((match): match is MasterCanProductMatch => Boolean(match && match.score >= minScore))
     .sort((a, b) => b.score - a.score)
@@ -223,8 +233,9 @@ export function findBarcodelessMasterMatches(
 export function findBestBarcodelessMasterMatch(
   masters: MasterCan[],
   input: ProductMatchInput,
+  scannedBarcode?: string,
 ): MasterCanProductMatch | null {
-  return findBarcodelessMasterMatches(masters, input, { limit: 1 })[0] ?? null
+  return findBarcodelessMasterMatches(masters, input, { limit: 1, scannedBarcode })[0] ?? null
 }
 
 /** Build multiple OFF lookup phrases — e.g. "Ultra Black" vs catalog "Monster Ultra" + "Black". */
@@ -264,6 +275,7 @@ export function buildOffProductMatchInputs(
 export function findBestBarcodelessMasterMatchFromOff(
   masters: MasterCan[],
   off: { name?: string | null; brand?: string | null; flavor?: string | null },
+  scannedBarcode?: string,
 ): MasterCanProductMatch | null {
   const inputs = buildOffProductMatchInputs({
     product_name: off.name,
@@ -273,7 +285,7 @@ export function findBestBarcodelessMasterMatchFromOff(
 
   let best: MasterCanProductMatch | null = null
   for (const input of inputs) {
-    const candidate = findBestBarcodelessMasterMatch(masters, input)
+    const candidate = findBestBarcodelessMasterMatch(masters, input, scannedBarcode)
     if (candidate && (!best || candidate.score > best.score)) {
       best = candidate
     }

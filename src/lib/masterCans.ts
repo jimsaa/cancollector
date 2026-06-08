@@ -3,7 +3,6 @@ import type { MasterBrandFilter, MasterCan } from '../types/masterCan'
 import { fetchLocalMasterCans } from './localMasterCans'
 import { normalizeMasterCan } from './masterCanNormalize'
 import { isConfigured } from './mode'
-import { useGuestStorage } from './guestStorage'
 import { supabase } from './supabase'
 
 function requireClient() {
@@ -31,12 +30,17 @@ async function fetchLocalOrSeedMasters(brand: MasterBrandFilter): Promise<Master
 }
 
 export async function fetchMasterCans(brand: MasterBrandFilter = 'all'): Promise<MasterCan[]> {
-  if (!isConfigured || useGuestStorage()) {
+  // Global master DB always comes from Supabase when configured (not guest localStorage).
+  if (!isConfigured) {
     return fetchLocalOrSeedMasters(brand)
   }
 
   const client = requireClient()
-  let query = client.from('master_cans').select('*').order('product_name', { ascending: true })
+  let query = client
+    .from('master_cans')
+    .select('*')
+    .order('product_name', { ascending: true })
+    .limit(5000)
 
   if (brand !== 'all') {
     query = query.eq('brand', brand)
@@ -58,7 +62,7 @@ export async function fetchMasterCans(brand: MasterBrandFilter = 'all'): Promise
 
 export async function fetchActiveMasterCans(brand: MasterBrandFilter = 'all'): Promise<MasterCan[]> {
   const all = await fetchMasterCans(brand)
-  return all.filter((m) => m.active)
+  return all.filter((m) => m.active !== false)
 }
 
 /** Seed-only count for display when DB unavailable. */

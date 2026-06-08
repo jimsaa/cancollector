@@ -2,7 +2,7 @@ import type { CanFormData } from '../components/cans/CanForm'
 import { applyScanImageToForm } from '../components/cans/CanForm'
 import type { ProductLookup } from '../types/can'
 import type { MasterCan } from '../types/masterCan'
-import { fetchActiveMasterCans } from './masterCans'
+import { fetchMasterCans } from './masterCans'
 import { findMasterByBarcode } from './masterCanMatching'
 import {
   findBestBarcodelessMasterMatchFromOff,
@@ -135,7 +135,7 @@ export async function lookupBarcodeProduct(
 
   let masters: MasterCan[] = []
   try {
-    masters = await fetchActiveMasterCans('all')
+    masters = await fetchMasterCans('all')
   } catch (err) {
     if (import.meta.env.DEV) {
       console.error('[scan] Master database fetch failed', err)
@@ -170,7 +170,7 @@ export async function lookupBarcodeProduct(
 
   const nameMatch =
     offProduct?.name?.trim() && masters.length > 0
-      ? findBestBarcodelessMasterMatchFromOff(masters, offProduct)
+      ? findBestBarcodelessMasterMatchFromOff(masters, offProduct, trimmed)
       : null
 
   let master: MasterCan | null = null
@@ -204,11 +204,15 @@ export async function lookupBarcodeProduct(
   )
 
   const barcodelessCount = masters.filter((m) => !m.barcode?.trim()).length
+  const ultraBlackInCatalog = masters.some((m) =>
+    m.product_name?.toLowerCase().includes('ultra black'),
+  )
   if (import.meta.env.DEV) {
     console.info('[scan] Barcode lookup', {
       barcode: trimmed,
       catalogCount: masters.length,
       barcodelessCount,
+      ultraBlackInCatalog,
       exactBarcode: Boolean(exactMaster),
       nameMatch: nameMatch?.master.product_name ?? null,
       nameMatchScore: nameMatch?.score ?? null,
@@ -219,9 +223,11 @@ export async function lookupBarcodeProduct(
       hasMasterImage: Boolean(form.master_image_url),
     })
   }
-  if (offProduct?.name && !nameMatch && barcodelessCount === 0) {
+  if (offProduct?.name && !nameMatch && ultraBlackInCatalog) {
+    console.warn('[scan] Ultra Black is in catalog but name match failed — check barcode/active fields')
+  } else if (offProduct?.name && !nameMatch && barcodelessCount === 0) {
     console.warn(
-      '[scan] Open Food Facts found a product but no barcode-less master cans exist to match against. Approve official imports into master_cans first.',
+      '[scan] Open Food Facts found a product but no barcode-less master cans exist to match against.',
     )
   }
 
