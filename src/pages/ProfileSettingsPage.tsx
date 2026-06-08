@@ -12,6 +12,7 @@ import { uploadAvatar } from '../lib/avatarStorage'
 import { isUsernameAvailable } from '../lib/publicProfiles'
 import { normalizeUsernameInput, publicProfilePath, validateUsername } from '../lib/username'
 import { isPremiumActive } from '../lib/premium'
+import { formatSupabaseError } from '../lib/supabaseDebug'
 
 export function ProfileSettingsPage() {
   const { user, profile, isCloudSynced, isGuest, updateProfile, refreshProfile, premiumFeatures } =
@@ -59,7 +60,7 @@ export function ProfileSettingsPage() {
       await refreshProfile()
       setMessage('Avatar updated')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Avatar upload failed')
+      setError(formatSupabaseError(err, 'Avatar upload failed'))
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -100,7 +101,7 @@ export function ProfileSettingsPage() {
       await refreshProfile()
       setMessage('Profile settings saved')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save profile')
+      setError(formatSupabaseError(err, 'Could not save profile'))
     } finally {
       setSaving(false)
     }

@@ -7,6 +7,7 @@ import {
   Globe,
   HardDrive,
   LogOut,
+  MessageSquare,
   Settings,
   Share2,
   UserPlus,
@@ -209,6 +210,17 @@ export function ProfilePage() {
             </form>
           </Card>
         ) : null}
+
+        <Link
+          to="/feedback"
+          className="flex items-center gap-3 rounded-xl border border-monster-border bg-monster-card p-4 transition-colors hover:border-monster-green/50"
+        >
+          <MessageSquare size={22} className="text-monster-green" />
+          <div>
+            <p className="text-sm font-semibold text-white">Feedback</p>
+            <p className="text-xs text-monster-muted">Report bugs, request features, or flag issues</p>
+          </div>
+        </Link>
 
         <Link
           to="/stats"

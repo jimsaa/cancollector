@@ -446,7 +446,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async (updates: ProfileUpdate) => {
 
-      if (!state.user || !isCloudSynced) return
+      if (!state.user || !isCloudSynced) {
+
+        throw new Error('Sign in with a cloud account to update your profile')
+
+      }
 
       const profile = await saveProfile(state.user.id, updates)
 

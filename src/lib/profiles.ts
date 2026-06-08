@@ -1,6 +1,38 @@
 import type { Profile, ProfileUpdate, UserRole } from '../types/profile'
-import { logAuthError } from './supabaseDebug'
+import { formatSupabaseError, logAuthError } from './supabaseDebug'
 import { supabase } from './supabase'
+
+const PUBLIC_PROFILE_COLUMNS = [
+  'username',
+  'public_display_name',
+  'bio',
+  'country',
+  'avatar_url',
+  'is_public_profile',
+] as const
+
+function isMissingColumnError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const record = err as { code?: string; message?: string }
+  if (record.code === 'PGRST204') return true
+  const msg = (record.message ?? '').toLowerCase()
+  return msg.includes('column') && (msg.includes('does not exist') || msg.includes('could not find'))
+}
+
+function formatProfileError(err: unknown, fallback = 'Could not save profile'): string {
+  if (isMissingColumnError(err)) {
+    return 'Profile settings are not available yet — run supabase/migration-public-profiles.sql in your Supabase SQL editor, then try again.'
+  }
+  return formatSupabaseError(err, fallback)
+}
+
+function stripPublicProfileColumns(updates: ProfileUpdate): ProfileUpdate {
+  const next = { ...updates }
+  for (const key of PUBLIC_PROFILE_COLUMNS) {
+    delete next[key as keyof ProfileUpdate]
+  }
+  return next
+}
 
 function requireClient() {
   if (!supabase) throw new Error('Supabase client unavailable')
@@ -105,13 +137,39 @@ export async function updateProfile(userId: string, updates: ProfileUpdate): Pro
     payload.username = payload.username.trim().toLowerCase()
   }
 
-  const { data, error } = await client
-    .from('profiles')
-    .update(payload)
-    .eq('id', userId)
-    .select()
-    .single()
+  const runUpdate = async (body: ProfileUpdate) => {
+    const { data, error } = await client
+      .from('profiles')
+      .update(body)
+      .eq('id', userId)
+      .select()
+      .maybeSingle()
 
-  if (error) throw error
-  return normalizeProfile(data as Record<string, unknown>)
+    if (error) throw error
+    if (data) return normalizeProfile(data as Record<string, unknown>)
+
+    const refreshed = await fetchProfile(userId)
+    if (refreshed) return refreshed
+
+    throw new Error('Profile update did not apply — sign out and back in, then try again.')
+  }
+
+  try {
+    return await runUpdate(payload)
+  } catch (err) {
+    if (!isMissingColumnError(err)) {
+      throw new Error(formatProfileError(err))
+    }
+
+    const fallback = stripPublicProfileColumns(payload)
+    if (Object.keys(fallback).length === 0) {
+      throw new Error(formatProfileError(err))
+    }
+
+    try {
+      return await runUpdate(fallback)
+    } catch (fallbackErr) {
+      throw new Error(formatProfileError(fallbackErr))
+    }
+  }
 }

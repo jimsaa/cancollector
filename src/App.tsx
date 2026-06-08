@@ -27,6 +27,8 @@ import { AdminMasterCansPage } from './pages/AdminMasterCansPage'
 import { AdminImportsPage } from './pages/AdminImportsPage'
 import { AdminMonsterProductsImportPage } from './pages/AdminMonsterProductsImportPage'
 import { AdminImageReviewPage } from './pages/AdminImageReviewPage'
+import { FeedbackPage } from './pages/FeedbackPage'
+import { AdminFeedbackPage } from './pages/AdminFeedbackPage'
 import {
   checkLocalImportState,
   logLocalImportCheck,
@@ -102,7 +104,9 @@ function AppRoutes() {
         <Route path="/profile/settings" element={<ProtectedRoute><ProfileSettingsPage /></ProtectedRoute>} />
         <Route path="/backup" element={<ProtectedRoute><BackupPage /></ProtectedRoute>} />
         <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} />
+        <Route path="/feedback" element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />
         <Route path="/admin/master-cans" element={<AdminMasterCansPage />} />
+        <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
         <Route path="/admin/image-review" element={<AdminImageReviewPage />} />
         <Route path="/admin/imports" element={<AdminImportsPage />} />
         <Route path="/admin/imports/monster-products" element={<AdminMonsterProductsImportPage />} />

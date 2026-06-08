@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ArrowRight,
-  Database,
-  Lock,
-  LogOut,
-  Package,
-  Shield,
-  Sparkles,
-} from 'lucide-react'
+import { ArrowRight, Lock, Package, Shield } from 'lucide-react'
+import { AdminHubNav } from '../components/admin/AdminHubNav'
 import { Layout } from '../components/layout/Layout'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -187,33 +180,13 @@ export function AdminImportsPage() {
               approve products into <code className="text-monster-green">master_cans</code>.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link to="/admin/master-cans">
-              <Button variant="secondary" className="py-2 text-xs">
-                <Database size={14} />
-                Scan queue
-              </Button>
-            </Link>
-            <Link to="/admin/image-review">
-              <Button variant="secondary" className="py-2 text-xs">
-                <Sparkles size={14} />
-                Image review
-              </Button>
-            </Link>
-            {access === 'pin_required' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  clearLocalAdminSession()
-                  setLocalAdmin(false)
-                }}
-                className="flex items-center gap-1 text-xs text-monster-muted hover:text-white"
-              >
-                <LogOut size={14} />
-                Exit
-              </button>
-            ) : null}
-          </div>
+          <AdminHubNav
+            showExit={access === 'pin_required'}
+            onExit={() => {
+              clearLocalAdminSession()
+              setLocalAdmin(false)
+            }}
+          />
         </div>
 
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -230,7 +203,7 @@ export function AdminImportsPage() {
 
         <Card className="border-monster-green/20 bg-monster-green/5 p-4">
           <div className="flex items-start gap-3">
-            <Sparkles size={18} className="mt-0.5 shrink-0 text-monster-green" />
+            <Package size={18} className="mt-0.5 shrink-0 text-monster-green" />
             <div className="text-xs text-monster-muted">
               <p className="font-semibold text-white">Import pipeline</p>
               <p className="mt-1">

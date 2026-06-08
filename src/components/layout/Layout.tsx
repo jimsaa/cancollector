@@ -1,5 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 
+import { SquareCheck } from 'lucide-react'
+
 import { Link } from 'react-router-dom'
 
 import { Logo } from '../brand/Logo'
@@ -102,9 +104,11 @@ export function Layout({ children, title, hideNav }: LayoutProps) {
 
             ) : isCloudSynced ? (
 
-              <span className="rounded-full border border-monster-green/40 bg-monster-green/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-monster-green">
+              <span className="inline-flex items-center gap-1 rounded-full border border-monster-green/40 bg-monster-green/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-monster-green">
 
                 CLOUD SYNCED
+
+                <SquareCheck size={12} className="text-monster-green" aria-hidden />
 
               </span>
 

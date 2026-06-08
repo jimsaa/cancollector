@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Shield, Check, X, Pencil, LogOut, Lock } from 'lucide-react'
+import { Shield, Check, X, Pencil, Lock } from 'lucide-react'
+import { AdminHubNav } from '../components/admin/AdminHubNav'
 import { Layout } from '../components/layout/Layout'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -199,23 +200,18 @@ export function AdminMasterCansPage() {
               to="/admin/imports"
               className="mt-1 inline-block text-xs text-monster-green hover:underline"
             >
-              Official product import queue
+              Admin hub
             </Link>
           </div>
-          {access === 'pin_required' ? (
-            <button
-              type="button"
-              onClick={() => {
-                clearLocalAdminSession()
-                setLocalAdmin(false)
-              }}
-              className="flex shrink-0 items-center gap-1 text-xs text-monster-muted hover:text-white"
-            >
-              <LogOut size={14} />
-              Exit
-            </button>
-          ) : null}
         </div>
+
+        <AdminHubNav
+          showExit={access === 'pin_required'}
+          onExit={() => {
+            clearLocalAdminSession()
+            setLocalAdmin(false)
+          }}
+        />
 
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
         {success ? <p className="text-sm text-monster-green">{success}</p> : null}

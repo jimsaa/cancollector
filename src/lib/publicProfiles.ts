@@ -31,20 +31,60 @@ function normalizePublicProfile(raw: Record<string, unknown>): PublicProfile | n
   }
 }
 
+const PUBLIC_PROFILE_SELECT =
+  'id, username, public_display_name, bio, country, avatar_url, is_public_profile, premium_status, premium_until, created_at'
+
+function isRpcUnavailableError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const record = err as { code?: string; message?: string }
+  if (record.code === 'PGRST202') return true
+  const msg = (record.message ?? '').toLowerCase()
+  return (
+    msg.includes('get_profile_by_username') ||
+    (msg.includes('function') && msg.includes('does not exist'))
+  )
+}
+
+async function fetchPublicProfileDirect(handle: string): Promise<PublicProfile | null> {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('profiles')
+    .select(PUBLIC_PROFILE_SELECT)
+    .ilike('username', handle)
+    .limit(1)
+
+  if (error) throw error
+  const row = data?.[0]
+  return row ? normalizePublicProfile(row as Record<string, unknown>) : null
+}
+
 export async function fetchProfileByUsername(username: string): Promise<PublicProfile | null> {
   if (!isConfigured) return null
 
   const client = requireClient()
   const handle = username.trim().toLowerCase()
+  if (!handle) return null
+
+  let profile: PublicProfile | null = null
 
   const { data, error } = await client.rpc('get_profile_by_username', {
     p_username: handle,
   })
 
-  if (error) throw error
+  if (!error) {
+    const row = Array.isArray(data) ? data[0] : data
+    if (row) profile = normalizePublicProfile(row as Record<string, unknown>)
+  }
 
-  const row = Array.isArray(data) ? data[0] : data
-  return row ? normalizePublicProfile(row as Record<string, unknown>) : null
+  if (!profile) {
+    profile = await fetchPublicProfileDirect(handle)
+  }
+
+  if (!profile && error && !isRpcUnavailableError(error)) {
+    throw error
+  }
+
+  return profile
 }
 
 export async function isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
@@ -53,41 +93,49 @@ export async function isUsernameAvailable(username: string, excludeUserId?: stri
   const client = requireClient()
   const handle = username.trim().toLowerCase()
 
-  let query = client.from('profiles').select('id').eq('username', handle)
+  let query = client.from('profiles').select('id').ilike('username', handle)
   if (excludeUserId) query = query.neq('id', excludeUserId)
 
-  const { data, error } = await query.maybeSingle()
-  if (error) throw error
-  return !data
+  const { data, error } = await query.limit(1)
+  if (error) throw new Error(error.message || 'Could not check username availability')
+  return !data?.length
 }
 
 export async function fetchPublicCans(userId: string): Promise<Can[]> {
   if (!isConfigured) return []
 
-  const client = requireClient()
-  const { data, error } = await client
-    .from('cans')
-    .select('*')
-    .eq('user_id', userId)
-    .order('added_date', { ascending: false })
+  try {
+    const client = requireClient()
+    const { data, error } = await client
+      .from('cans')
+      .select('*')
+      .eq('user_id', userId)
+      .order('added_date', { ascending: false })
 
-  if (error) throw error
-  return ((data ?? []) as Can[]).map(normalizeCanRecord)
+    if (error) return []
+    return ((data ?? []) as Can[]).map(normalizeCanRecord)
+  } catch {
+    return []
+  }
 }
 
 export async function fetchPublicTradeListings(userId: string): Promise<TradeListing[]> {
   if (!isConfigured) return []
 
-  const client = requireClient()
-  const { data, error } = await client
-    .from('trade_listings')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('trade_status', 'available')
-    .order('created_at', { ascending: false })
+  try {
+    const client = requireClient()
+    const { data, error } = await client
+      .from('trade_listings')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('trade_status', 'available')
+      .order('created_at', { ascending: false })
 
-  if (error) throw error
-  return (data ?? []).map((row) => normalizeListing(row as Record<string, unknown>))
+    if (error) return []
+    return (data ?? []).map((row) => normalizeListing(row as Record<string, unknown>))
+  } catch {
+    return []
+  }
 }
 
 export async function computePublicProfileStats(_userId: string, cans: Can[]): Promise<PublicProfileStats> {

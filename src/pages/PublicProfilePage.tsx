@@ -23,6 +23,7 @@ import type { Can } from '../types/can'
 import type { TradeListing } from '../types/trade'
 import { getPremiumFeatures } from '../lib/premium'
 import { isConfigured } from '../lib/mode'
+import { formatSupabaseError } from '../lib/supabaseDebug'
 
 const APP_ICON = '/pwa-512x512.png'
 
@@ -44,6 +45,7 @@ export function PublicProfilePage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [isPrivate, setIsPrivate] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const displayName = profile ? getPublicDisplayName(profile) : username
   const isPremium = profile ? isPremiumActive(profile) : false
@@ -57,6 +59,7 @@ export function PublicProfilePage() {
     setLoading(true)
     setNotFound(false)
     setIsPrivate(false)
+    setLoadError(null)
 
     ;(async () => {
       try {
@@ -66,6 +69,11 @@ export function PublicProfilePage() {
         if (!fetched) {
           setNotFound(true)
           setProfile(null)
+          setLoadError(
+            isConfigured
+              ? 'No collector profile exists for this username. Save your username in Profile Settings with Public profile enabled.'
+              : 'Cloud profiles are unavailable on this deployment.',
+          )
           return
         }
 
@@ -75,18 +83,42 @@ export function PublicProfilePage() {
           return
         }
 
-        const cans = await fetchPublicCans(fetched.id)
-        const tradeListings = await fetchPublicTradeListings(fetched.id)
-        const computed = await computePublicProfileStats(fetched.id, cans)
+        setProfile(fetched)
+
+        let cans: Can[] = []
+        let tradeListings: TradeListing[] = []
+        let computed: PublicProfileStats | null = null
+        let sectionError: string | null = null
+
+        try {
+          cans = await fetchPublicCans(fetched.id)
+          tradeListings = await fetchPublicTradeListings(fetched.id)
+          computed = await computePublicProfileStats(fetched.id, cans)
+        } catch (err) {
+          sectionError = formatSupabaseError(err, 'Could not load collection details')
+        }
 
         if (!active) return
 
-        setProfile(fetched)
-        setStats(computed)
+        setStats(
+          computed ?? {
+            totalCans: 0,
+            unopenedCount: 0,
+            tradeCount: 0,
+            wishlistCount: 0,
+            completionPercentage: 0,
+            completionOwned: 0,
+            completionTotal: 0,
+          },
+        )
         setRecentCans(cans.filter((c) => !c.is_wishlist).slice(0, recentLimit))
         setListings(tradeListings)
-      } catch {
-        if (active) setNotFound(true)
+        if (sectionError) setLoadError(sectionError)
+      } catch (err) {
+        if (active) {
+          setNotFound(true)
+          setLoadError(formatSupabaseError(err, 'Could not load collector profile'))
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -126,7 +158,10 @@ export function PublicProfilePage() {
         <EmptyState
           icon={<Globe size={40} />}
           title="Collector not found"
-          description="This username does not exist or cloud profiles are unavailable."
+          description={
+            loadError ??
+            'This username does not exist or cloud profiles are unavailable.'
+          }
           action={
             <Link to="/" className="text-sm text-monster-green hover:underline">
               Go to {APP_NAME}
@@ -176,6 +211,11 @@ export function PublicProfilePage() {
 
       <main className="mx-auto max-w-lg px-4 py-4">
         <div className="flex flex-col gap-4">
+          {loadError ? (
+            <p className="rounded-xl border border-yellow-600/30 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200">
+              {loadError}
+            </p>
+          ) : null}
           <Card>
             <div className="flex items-start gap-4">
               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-monster-green/20">
