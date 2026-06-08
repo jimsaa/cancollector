@@ -5,7 +5,7 @@ import type { MasterCan } from '../types/masterCan'
 import { fetchActiveMasterCans } from './masterCans'
 import { findMasterByBarcode } from './masterCanMatching'
 import {
-  findBestBarcodelessMasterMatch,
+  findBestBarcodelessMasterMatchFromOff,
   getMatchConfidence,
   type MatchConfidence,
 } from './masterCanProductMatch'
@@ -133,15 +133,16 @@ export async function lookupBarcodeProduct(
 ): Promise<BarcodeLookupResult> {
   const trimmed = barcode.trim()
 
-  let exactMaster: MasterCan | null = null
+  let masters: MasterCan[] = []
   try {
-    const masters = await fetchActiveMasterCans('all')
-    exactMaster = findMasterByBarcode(masters, trimmed)
+    masters = await fetchActiveMasterCans('all')
   } catch (err) {
     if (import.meta.env.DEV) {
-      console.error('[scan] Master barcode lookup failed', err)
+      console.error('[scan] Master database fetch failed', err)
     }
   }
+
+  const exactMaster = masters.length > 0 ? findMasterByBarcode(masters, trimmed) : null
 
   if (isCompleteMasterMatch(exactMaster)) {
     const base = emptyForm()
@@ -167,22 +168,10 @@ export async function lookupBarcodeProduct(
   const off = await lookupOpenFoodFacts(trimmed)
   const offProduct = off.product
 
-  let nameMatch = null
-  const offName = offProduct?.name?.trim()
-  if (offName) {
-    try {
-      const masters = await fetchActiveMasterCans('all')
-      nameMatch = findBestBarcodelessMasterMatch(masters, {
-        product_name: offName,
-        brand: offProduct?.brand,
-        flavor: offProduct?.flavor,
-      })
-    } catch (err) {
-      if (import.meta.env.DEV) {
-        console.error('[scan] Name match lookup failed', err)
-      }
-    }
-  }
+  const nameMatch =
+    offProduct?.name?.trim() && masters.length > 0
+      ? findBestBarcodelessMasterMatchFromOff(masters, offProduct)
+      : null
 
   let master: MasterCan | null = null
   let matchKind: MasterMatchKind = null
@@ -214,17 +203,26 @@ export async function lookupBarcodeProduct(
     { masterReferenceApproved: Boolean(matchKind && fields.master_image_url) },
   )
 
+  const barcodelessCount = masters.filter((m) => !m.barcode?.trim()).length
   if (import.meta.env.DEV) {
     console.info('[scan] Barcode lookup', {
       barcode: trimmed,
+      catalogCount: masters.length,
+      barcodelessCount,
       exactBarcode: Boolean(exactMaster),
       nameMatch: nameMatch?.master.product_name ?? null,
+      nameMatchScore: nameMatch?.score ?? null,
       matchKind,
       matchConfidence,
       offStatus: off.status,
-      name: form.name || null,
+      offName: offProduct?.name ?? null,
       hasMasterImage: Boolean(form.master_image_url),
     })
+  }
+  if (offProduct?.name && !nameMatch && barcodelessCount === 0) {
+    console.warn(
+      '[scan] Open Food Facts found a product but no barcode-less master cans exist to match against. Approve official imports into master_cans first.',
+    )
   }
 
   return {

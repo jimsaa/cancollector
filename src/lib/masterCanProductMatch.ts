@@ -101,6 +101,14 @@ function getMasterSearchableNames(master: MasterCan): { value: string; field: st
   push(master.variant_name, 'variant_name')
   push(stripBrandFromName(master.product_name, master.brand), 'product_name_short')
 
+  if (master.category && master.flavor) {
+    push(`${master.category} ${master.flavor}`, 'category_flavor')
+    push(`${master.flavor}`, 'flavor_only')
+  }
+  if (master.category) {
+    push(master.category, 'category')
+  }
+
   const seen = new Set<string>()
   return entries.filter((entry) => {
     const key = normalizeText(entry.value)
@@ -217,6 +225,60 @@ export function findBestBarcodelessMasterMatch(
   input: ProductMatchInput,
 ): MasterCanProductMatch | null {
   return findBarcodelessMasterMatches(masters, input, { limit: 1 })[0] ?? null
+}
+
+/** Build multiple OFF lookup phrases — e.g. "Ultra Black" vs catalog "Monster Ultra" + "Black". */
+export function buildOffProductMatchInputs(
+  off: Pick<ProductMatchInput, 'product_name' | 'brand' | 'flavor' | 'variant_name'> & {
+    name?: string | null
+  },
+): ProductMatchInput[] {
+  const name = (off.product_name ?? off.name)?.trim()
+  if (!name) return []
+
+  const brand = off.brand ?? null
+  const flavor = off.flavor ?? null
+  const inputs: ProductMatchInput[] = [
+    { product_name: name, brand, flavor },
+    { product_name: name, brand, flavor: name, variant_name: name },
+  ]
+
+  if (flavor && flavor !== name) {
+    inputs.push({ product_name: flavor, brand, flavor: name })
+  }
+
+  const ultraMatch = name.match(/^ultra\s+(.+)$/i)
+  if (ultraMatch) {
+    inputs.push({
+      product_name: name,
+      brand,
+      flavor: ultraMatch[1],
+      category: 'Monster Ultra',
+      variant_name: ultraMatch[1],
+    })
+  }
+
+  return inputs
+}
+
+export function findBestBarcodelessMasterMatchFromOff(
+  masters: MasterCan[],
+  off: { name?: string | null; brand?: string | null; flavor?: string | null },
+): MasterCanProductMatch | null {
+  const inputs = buildOffProductMatchInputs({
+    product_name: off.name,
+    brand: off.brand,
+    flavor: off.flavor,
+  })
+
+  let best: MasterCanProductMatch | null = null
+  for (const input of inputs) {
+    const candidate = findBestBarcodelessMasterMatch(masters, input)
+    if (candidate && (!best || candidate.score > best.score)) {
+      best = candidate
+    }
+  }
+  return best
 }
 
 export function pickMasterByProductIdentity(
