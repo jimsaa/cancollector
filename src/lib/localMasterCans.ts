@@ -1,5 +1,6 @@
 import { MASTER_CANS_SEED } from '../data/masterCansSeed'
 import type { MasterCan } from '../types/masterCan'
+import { normalizeMasterBarcode } from './masterCanSupabase'
 import { mergeMasterCans, normalizeMasterCan } from './masterCanNormalize'
 import { generateId } from './id'
 
@@ -76,7 +77,7 @@ export function findLocalExistingMaster(options: {
 export async function upsertLocalApprovedMasterCan(
   input: Omit<MasterCan, 'created_at' | 'updated_at'>,
 ): Promise<MasterCan> {
-  const barcode = (input.barcode ?? '').trim()
+  const barcode = normalizeMasterBarcode(input.barcode)
   const sourceUrl = (input.source_url ?? '').trim() || null
 
   const existing = findLocalExistingMaster({
@@ -96,6 +97,7 @@ export async function upsertLocalApprovedMasterCan(
       created_at: existing.created_at,
       updated_at: now,
       active: true,
+      barcode,
       source_url: sourceUrl ?? existing.source_url ?? null,
     })
     if (existingIndex >= 0) {
@@ -106,7 +108,7 @@ export async function upsertLocalApprovedMasterCan(
   }
 
   const seedMatch = barcode
-    ? MASTER_CANS_SEED.find((m) => (m.barcode ?? '').trim() === barcode)
+    ? MASTER_CANS_SEED.find((m) => normalizeMasterBarcode(m.barcode) === barcode)
     : null
   if (seedMatch) {
     return normalizeMasterCan(seedMatch)
@@ -121,6 +123,7 @@ export async function upsertLocalApprovedMasterCan(
     created_at: existingIndex >= 0 ? extras[existingIndex].created_at : now,
     updated_at: now,
     active: true,
+    barcode,
   })
 
   if (existingIndex >= 0) {

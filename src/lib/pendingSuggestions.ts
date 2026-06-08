@@ -27,7 +27,9 @@ import { normalizeMasterCan } from './masterCanNormalize'
 import { buildMasterReferencePayload, toMasterCanReferenceFields } from './masterReferencePayload'
 import {
   formatMasterCanError,
+  isBarcodeDuplicateError,
   isDuplicateKeyError,
+  normalizeMasterBarcode,
   shouldRetryMasterCanWithoutExtendedColumns,
   stripExtendedMasterColumns,
 } from './masterCanSupabase'
@@ -251,11 +253,25 @@ async function findCloudMasterByNameBrand(
   return row ? normalizeMasterCan(row as MasterCan) : null
 }
 
+function sanitizeMasterCanWritePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const row = { ...payload }
+  const barcode = normalizeMasterBarcode(row.barcode as string | null | undefined)
+  if (barcode) {
+    row.barcode = barcode
+  } else {
+    delete row.barcode
+  }
+  if (!row.source_url) {
+    delete row.source_url
+  }
+  return row
+}
+
 async function findExistingCloudMasterCan(
   master: ApproveSuggestionInput,
   sourceUrl: string | null,
 ): Promise<MasterCan | null> {
-  const barcode = master.barcode?.trim() ?? null
+  const barcode = normalizeMasterBarcode(master.barcode)
 
   if (barcode) {
     const byBarcode = await findCloudMasterByBarcode(barcode)
@@ -289,7 +305,7 @@ function buildMasterCanPayload(
   sourceUrl: string | null,
   adminApproved: boolean,
 ): Record<string, unknown> {
-  const barcode = master.barcode?.trim() ?? null
+  const barcode = normalizeMasterBarcode(master.barcode)
   const referenceFields = toMasterCanReferenceFields(
     buildMasterReferencePayload({
       reference_image_url: master.reference_image_url,
@@ -308,7 +324,7 @@ function buildMasterCanPayload(
     volume: master.volume ?? null,
     country: master.country ?? null,
     category: master.category ?? null,
-    barcode,
+    ...(barcode ? { barcode } : {}),
     ...referenceFields,
     source: normalizeMasterSource(master.source),
     rarity: master.rarity ?? 'unknown',
@@ -329,7 +345,7 @@ async function writeCloudMasterCan(
   match: { type: 'id'; id: string } | { type: 'insert' },
 ): Promise<MasterCan> {
   const client = requireClient()
-  let row: Record<string, unknown> = { ...payload }
+  let row = sanitizeMasterCanWritePayload(payload)
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const result =
@@ -360,6 +376,36 @@ interface UpsertCloudMasterResult {
   updatedExisting: boolean
 }
 
+async function resolveDuplicateMasterCan(
+  master: ApproveSuggestionInput,
+  sourceUrl: string | null,
+  err?: unknown,
+): Promise<MasterCan | null> {
+  let existing = await findExistingCloudMasterCan(master, sourceUrl)
+  if (existing) return existing
+
+  const barcode = normalizeMasterBarcode(master.barcode)
+  if (barcode || isBarcodeDuplicateError(err)) {
+    if (barcode) {
+      existing = await findCloudMasterByBarcode(barcode)
+      if (existing) return existing
+    }
+  }
+
+  if (sourceUrl) {
+    existing = await findCloudMasterBySourceUrl(sourceUrl)
+    if (existing) return existing
+  }
+
+  const brand = master.brand?.trim()
+  const productName = master.product_name?.trim()
+  if (brand && productName) {
+    return findCloudMasterByNameBrand(brand, productName)
+  }
+
+  return null
+}
+
 async function upsertCloudMasterCan(
   master: ApproveSuggestionInput,
   suggestion?: PendingCanSuggestion,
@@ -383,29 +429,23 @@ async function upsertCloudMasterCan(
   } catch (err) {
     if (!isDuplicateKeyError(err)) throw err
 
-    existing = await findExistingCloudMasterCan(master, sourceUrl)
-    if (!existing && sourceUrl) {
-      existing = await findCloudMasterBySourceUrl(sourceUrl)
-    }
+    existing = await resolveDuplicateMasterCan(master, sourceUrl, err)
 
     if (!existing) {
-      const insertPayload = { ...payload }
+      const insertPayload = sanitizeMasterCanWritePayload({ ...payload })
       delete insertPayload.source_url
       try {
         const inserted = await writeCloudMasterCan(insertPayload, { type: 'insert' })
         return { master: inserted, updatedExisting: false }
       } catch (retryErr) {
         if (!isDuplicateKeyError(retryErr)) throw retryErr
-        existing = await findExistingCloudMasterCan(master, null)
+        existing = await resolveDuplicateMasterCan(master, sourceUrl, retryErr)
       }
     }
 
     if (!existing) throw err
 
-    const updatePayload = { ...payload }
-    if (!sourceUrl) delete updatePayload.source_url
-
-    const updated = await writeCloudMasterCan(updatePayload, { type: 'id', id: existing.id })
+    const updated = await writeCloudMasterCan(payload, { type: 'id', id: existing.id })
     return { master: updated, updatedExisting: true }
   }
 }
@@ -437,7 +477,7 @@ export function buildApproveInputFromSuggestion(
     volume: suggestion.volume ?? '',
     country: suggestion.country ?? (isOfficial ? 'US' : ''),
     category: suggestion.category ?? '',
-    barcode: suggestion.barcode ?? '',
+    barcode: normalizeMasterBarcode(suggestion.barcode) ?? undefined,
     reference_image_url: suggestion.image_url,
     image_url: suggestion.image_url,
     image_source: isOfficial ? 'official_site' : suggestion.source === 'open_food_facts' ? 'open_food_facts' : 'manual',
@@ -490,7 +530,7 @@ export async function approvePendingSuggestion(
   master: ApproveSuggestionInput,
 ): Promise<ApproveSuggestionResult> {
   let approvedMaster: MasterCan
-  const barcode = master.barcode?.trim() ?? ''
+  const barcode = normalizeMasterBarcode(master.barcode) ?? ''
 
   let updatedExisting = false
 

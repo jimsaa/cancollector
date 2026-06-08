@@ -143,3 +143,33 @@ export function isDuplicateKeyError(err: unknown): boolean {
 }
 
 
+
+/** Empty strings violate master_cans_barcode_unique_idx — only persist real barcodes. */
+
+export function normalizeMasterBarcode(barcode: string | null | undefined): string | null {
+
+  const trimmed = barcode?.trim()
+
+  return trimmed ? trimmed : null
+
+}
+
+
+
+export function isBarcodeDuplicateError(err: unknown): boolean {
+
+  if (!isDuplicateKeyError(err)) return false
+
+  const msg =
+
+    typeof err === 'object' && err !== null
+
+      ? String((err as { message?: string }).message ?? '').toLowerCase()
+
+      : ''
+
+  return msg.includes('barcode')
+
+}
+
+
