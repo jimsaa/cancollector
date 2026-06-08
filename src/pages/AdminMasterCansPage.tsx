@@ -114,12 +114,52 @@ export function AdminMasterCansPage() {
     }
   }
 
+  const handleAttachBarcodeSuggestion = async (suggestion: PendingCanSuggestion) => {
+    if (!suggestion.suggested_master_can_id) return
+    setActionId(suggestion.id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const result = await linkPendingSuggestionToMaster(
+        suggestion,
+        suggestion.suggested_master_can_id,
+        'user_scan',
+      )
+      setSuccess(
+        `Barcode attached to master can. ${result.linkedCans} user can${result.linkedCans === 1 ? '' : 's'} updated.`,
+      )
+      await load()
+    } catch (err) {
+      setError(formatMasterCanError(err, 'Attach barcode failed'))
+    } finally {
+      setActionId(null)
+    }
+  }
+
   const handleApprove = async () => {
     if (!editing || !form) return
     setActionId(editing.id)
     setError(null)
     setSuccess(null)
     try {
+      if (
+        editing.suggestion_type === 'attach_barcode' &&
+        editing.suggested_master_can_id
+      ) {
+        const result = await linkPendingSuggestionToMaster(
+          editing,
+          editing.suggested_master_can_id,
+          'user_scan',
+        )
+        setSuccess(
+          `Barcode attached to master can. ${result.linkedCans} user can${result.linkedCans === 1 ? '' : 's'} updated.`,
+        )
+        setEditing(null)
+        setForm(null)
+        await load()
+        return
+      }
+
       const result = await approvePendingSuggestion(editing, form)
       setSuccess(formatApproveSuggestionMessage(result))
       setEditing(null)
@@ -271,7 +311,11 @@ export function AdminMasterCansPage() {
                       Source: {suggestion.source} ·{' '}
                       {new Date(suggestion.created_at).toLocaleString()}
                     </p>
-                    {suggestion.barcode ? (
+                    {suggestion.suggestion_type === 'attach_barcode' ? (
+                      <p className="mt-1 text-xs text-yellow-400">
+                        Attach scanned barcode to existing master can
+                      </p>
+                    ) : suggestion.barcode ? (
                       <SuggestionPossibleMatchHint suggestion={suggestion} />
                     ) : null}
                   </div>
@@ -288,11 +332,19 @@ export function AdminMasterCansPage() {
                   </Button>
                   <Button
                     className="py-2 text-xs"
-                    onClick={() => openEdit(suggestion)}
+                    loading={actionId === suggestion.id}
+                    onClick={() =>
+                      suggestion.suggestion_type === 'attach_barcode' &&
+                      suggestion.suggested_master_can_id
+                        ? void handleAttachBarcodeSuggestion(suggestion)
+                        : openEdit(suggestion)
+                    }
                     disabled={actionId === suggestion.id}
                   >
                     <Check size={14} />
-                    Approve
+                    {suggestion.suggestion_type === 'attach_barcode'
+                      ? 'Attach barcode'
+                      : 'Approve'}
                   </Button>
                   <Button
                     variant="ghost"

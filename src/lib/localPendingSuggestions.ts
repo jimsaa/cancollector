@@ -16,6 +16,8 @@ const EMPTY_FIELDS = {
   country: null,
   product_page_url: null,
   source_url: null,
+  suggestion_type: 'new_master' as const,
+  suggested_master_can_id: null,
 } as const
 
 function normalizeRow(raw: PendingCanSuggestion): PendingCanSuggestion {
@@ -76,6 +78,9 @@ export function createLocalPendingSuggestion(
         country: input.country ?? existing.country,
         product_page_url: input.product_page_url ?? existing.product_page_url,
         source_url: input.source_url ?? existing.source_url,
+        suggestion_type: input.suggestion_type ?? existing.suggestion_type,
+        suggested_master_can_id:
+          input.suggested_master_can_id ?? existing.suggested_master_can_id,
       }
       writeAll(readAll().map((s) => (s.id === existing.id ? updated : s)))
       return updated
@@ -97,6 +102,8 @@ export function createLocalPendingSuggestion(
     source_url: input.source_url ?? null,
     source: input.source,
     submitted_by: input.submitted_by ?? null,
+    suggestion_type: input.suggestion_type ?? 'new_master',
+    suggested_master_can_id: input.suggested_master_can_id ?? null,
     created_at: new Date().toISOString(),
     status: 'pending',
   })

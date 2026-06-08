@@ -20,7 +20,8 @@ import {
 
 
 
-import type { OffLookupStatus } from '../../lib/scanProductLookup'
+import type { MasterMatchKind, OffLookupStatus } from '../../lib/scanProductLookup'
+import type { MatchConfidence } from '../../lib/masterCanProductMatch'
 
 
 
@@ -66,9 +67,19 @@ interface AddCanStepMatchProps {
 
   matchedMaster: MasterCan | null
 
+  matchKind: MasterMatchKind
+
+  matchConfidence: MatchConfidence | null
+
   possibleMaster: MasterCan | null
 
   possibleMasterScore: number | null
+
+  declinedNameMatch: boolean
+
+  onAcceptNameMatch: () => void
+
+  onDeclineNameMatch: () => void
 
 
 
@@ -202,9 +213,19 @@ export function AddCanStepMatch({
 
   matchedMaster,
 
+  matchKind,
+
+  matchConfidence,
+
   possibleMaster,
 
   possibleMasterScore,
+
+  declinedNameMatch,
+
+  onAcceptNameMatch,
+
+  onDeclineNameMatch,
 
 
 
@@ -346,7 +367,9 @@ export function AddCanStepMatch({
 
 
 
-                ? `Matched: ${matchedMaster.product_name}`
+                ? matchKind === 'product_name'
+                  ? `Matched by product name: ${matchedMaster.product_name}`
+                  : `Matched: ${matchedMaster.product_name}`
 
 
 
@@ -364,20 +387,33 @@ export function AddCanStepMatch({
 
         </Card>
 
-        {!matchedMaster && possibleMaster ? (
-          <Card className="flex items-start gap-3 border-yellow-600/40 bg-yellow-900/20 p-3">
-            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-400" />
-            <div>
-              <p className="text-sm font-semibold text-yellow-200">Possible catalog match</p>
-              <p className="text-xs text-yellow-100/80">
-                {possibleMaster.product_name}
-                {possibleMasterScore
-                  ? ` (${Math.round(possibleMasterScore * 100)}% name match, no barcode yet)`
-                  : ' (no barcode yet)'}
-              </p>
-              <p className="mt-1 text-[10px] text-monster-muted">
-                Your scan can be linked after an admin attaches this barcode to the catalog product.
-              </p>
+        {matchedMaster && matchKind === 'product_name' ? (
+          <span className="inline-flex w-fit items-center rounded-full bg-monster-green/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-monster-green">
+            Matched by product name
+          </span>
+        ) : null}
+
+        {!matchedMaster && possibleMaster && !declinedNameMatch && matchConfidence === 'medium' ? (
+          <Card className="flex flex-col gap-3 border-yellow-600/40 bg-yellow-900/20 p-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-400" />
+              <div>
+                <p className="text-sm font-semibold text-yellow-200">Possible Master Database match</p>
+                <p className="text-xs text-yellow-100/80">
+                  {possibleMaster.product_name}
+                  {possibleMasterScore
+                    ? ` (${Math.round(possibleMasterScore * 100)}% match, no barcode yet)`
+                    : ' (no barcode yet)'}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button className="py-2 text-xs" onClick={onAcceptNameMatch}>
+                Use this match
+              </Button>
+              <Button variant="secondary" className="py-2 text-xs" onClick={onDeclineNameMatch}>
+                Keep OFF data
+              </Button>
             </div>
           </Card>
         ) : null}

@@ -11,6 +11,7 @@ import { createLocalOfficialPendingSuggestions } from './localOfficialProductImp
 import {
   createLocalPendingSuggestion,
   fetchLocalPendingSuggestions,
+  findLocalPendingByBarcode,
   updateLocalPendingSuggestion,
 } from './localPendingSuggestions'
 import {
@@ -64,7 +65,11 @@ export async function fetchPendingSuggestions(
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return (data ?? []) as PendingCanSuggestion[]
+  return ((data ?? []) as PendingCanSuggestion[]).map((row) => ({
+    ...row,
+    suggestion_type: row.suggestion_type ?? 'new_master',
+    suggested_master_can_id: row.suggested_master_can_id ?? null,
+  }))
 }
 
 /** Only creates a suggestion when barcode is unknown in the approved master database. */
@@ -109,6 +114,78 @@ export async function maybeCreatePendingSuggestion(
   const { data, error } = await client
     .from('pending_can_suggestions')
     .insert({ ...input, barcode, status: 'pending' })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as PendingCanSuggestion
+}
+
+export async function maybeCreateBarcodeLinkSuggestion(input: {
+  barcode: string
+  product_name: string
+  suggested_master_can_id: string
+  submitted_by: string | null
+  brand?: string | null
+  flavor?: string | null
+}): Promise<PendingCanSuggestion | null> {
+  const barcode = input.barcode?.trim()
+  const masterId = input.suggested_master_can_id?.trim()
+  if (!barcode || !masterId) return null
+
+  const row: PendingCanSuggestionInsert = {
+    barcode,
+    product_name: input.product_name,
+    brand: input.brand ?? null,
+    flavor: input.flavor ?? null,
+    source: 'user_scan',
+    submitted_by: input.submitted_by,
+    suggestion_type: 'attach_barcode',
+    suggested_master_can_id: masterId,
+  }
+
+  if (useLocalPendingStore()) {
+    if (findLocalMasterByBarcode(barcode)) return null
+    const existing = findLocalPendingByBarcode(barcode)
+    if (existing?.suggestion_type === 'attach_barcode') {
+      return updateLocalPendingSuggestion(existing.id, {
+        product_name: row.product_name,
+        suggested_master_can_id: masterId,
+      })
+    }
+    return createLocalPendingSuggestion(row)
+  }
+
+  const masters = await fetchActiveMasterCans('all')
+  if (findMasterByBarcode(masters, barcode)) return null
+
+  const client = requireClient()
+  const { data: existing } = await client
+    .from('pending_can_suggestions')
+    .select('id')
+    .eq('barcode', barcode)
+    .eq('status', 'pending')
+    .eq('suggestion_type', 'attach_barcode')
+    .maybeSingle()
+
+  if (existing) {
+    const { data, error } = await client
+      .from('pending_can_suggestions')
+      .update({
+        product_name: input.product_name,
+        suggested_master_can_id: masterId,
+        submitted_by: input.submitted_by,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single()
+    if (error) throw error
+    return data as PendingCanSuggestion
+  }
+
+  const { data, error } = await client
+    .from('pending_can_suggestions')
+    .insert({ ...row, status: 'pending' })
     .select()
     .single()
 

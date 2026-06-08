@@ -14,6 +14,8 @@ export type PendingSuggestionSource =
 
   | 'official_site'
 
+export type PendingSuggestionType = 'new_master' | 'attach_barcode'
+
 
 
 export interface PendingCanSuggestion {
@@ -50,6 +52,10 @@ export interface PendingCanSuggestion {
 
   status: PendingSuggestionStatus
 
+  suggestion_type: PendingSuggestionType
+
+  suggested_master_can_id: string | null
+
 }
 
 
@@ -71,6 +77,8 @@ export type PendingCanSuggestionInsert = {
   id?: string
   created_at?: string
   status?: PendingSuggestionStatus
+  suggestion_type?: PendingSuggestionType
+  suggested_master_can_id?: string | null
 }
 
 

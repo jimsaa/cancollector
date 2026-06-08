@@ -160,11 +160,15 @@ export function formDataToInsert(data: CanFormData): CanInsert {
 }
 
 /** After barcode scan — never defaults to Open Food Facts for collection image. */
-export function applyScanImageToForm(data: CanFormData): CanFormData {
+export function applyScanImageToForm(
+  data: CanFormData,
+  options?: { masterReferenceApproved?: boolean },
+): CanFormData {
   const resolved = resolveScanDefaultImage({
     user_image_url: data.user_image_url,
     master_image_url: data.master_image_url,
     off_image_url: data.off_image_url,
+    master_reference_approved: options?.masterReferenceApproved,
   })
   return { ...data, image_source: resolved.image_source }
 }

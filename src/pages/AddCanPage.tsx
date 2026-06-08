@@ -24,9 +24,20 @@ import { useCanImageUpload } from '../hooks/useCanImageUpload'
 import { findDuplicateCan } from '../lib/duplicates'
 import { fetchActiveMasterCans } from '../lib/masterCans'
 import { attachMasterCanLink } from '../lib/masterCanMatching'
-import { lookupBarcodeProduct, type OffLookupStatus } from '../lib/scanProductLookup'
+import {
+  applyNameMatchedMasterToForm,
+  lookupBarcodeProduct,
+  type MasterMatchKind,
+  type OffLookupStatus,
+} from '../lib/scanProductLookup'
 import { getSaveImageFields } from '../lib/canImage'
-import { inferSuggestionSource, maybeCreatePendingSuggestion } from '../lib/pendingSuggestions'
+import { normalizeMasterBarcode } from '../lib/masterCanSupabase'
+import type { MatchConfidence } from '../lib/masterCanProductMatch'
+import {
+  inferSuggestionSource,
+  maybeCreateBarcodeLinkSuggestion,
+  maybeCreatePendingSuggestion,
+} from '../lib/pendingSuggestions'
 import { useGuestStorage } from '../lib/guestStorage'
 import { isCameraSupported, isSecureContext } from '../lib/cameraErrors'
 import type { CameraErrorInfo } from '../lib/cameraErrors'
@@ -49,6 +60,10 @@ export function AddCanPage() {
   const [matchedMaster, setMatchedMaster] = useState<MasterCan | null>(null)
   const [possibleMaster, setPossibleMaster] = useState<MasterCan | null>(null)
   const [possibleMasterScore, setPossibleMasterScore] = useState<number | null>(null)
+  const [matchKind, setMatchKind] = useState<MasterMatchKind>(null)
+  const [matchConfidence, setMatchConfidence] = useState<MatchConfidence | null>(null)
+  const [confirmedMaster, setConfirmedMaster] = useState<MasterCan | null>(null)
+  const [declinedNameMatch, setDeclinedNameMatch] = useState(false)
   const [duplicate, setDuplicate] = useState<Can | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [offStatus, setOffStatus] = useState<OffLookupStatus>('skipped')
@@ -70,6 +85,10 @@ export function AddCanPage() {
     setMatchedMaster(null)
     setPossibleMaster(null)
     setPossibleMasterScore(null)
+    setMatchKind(null)
+    setMatchConfidence(null)
+    setConfirmedMaster(null)
+    setDeclinedNameMatch(false)
     setDuplicate(null)
     setManualBarcode('')
     setOffStatus('skipped')
@@ -104,6 +123,10 @@ export function AddCanPage() {
         setMatchedMaster(result.master)
         setPossibleMaster(result.possibleMaster)
         setPossibleMasterScore(result.possibleMasterScore)
+        setMatchKind(result.matchKind)
+        setMatchConfidence(result.matchConfidence)
+        setConfirmedMaster(result.matchKind === 'product_name' ? result.master : null)
+        setDeclinedNameMatch(false)
         setForm(result.form)
         setOffStatus(result.offStatus)
         setPrimarySource(result.primarySource)
@@ -124,6 +147,10 @@ export function AddCanPage() {
         setMatchedMaster(null)
         setPossibleMaster(null)
         setPossibleMasterScore(null)
+        setMatchKind(null)
+        setMatchConfidence(null)
+        setConfirmedMaster(null)
+        setDeclinedNameMatch(false)
         setOffStatus('error')
         setPrimarySource('none')
 
@@ -167,6 +194,24 @@ export function AddCanPage() {
     setForm((prev) => applyScanImageToForm({ ...prev, user_image_url: '' }))
   }
 
+  const handleAcceptNameMatch = () => {
+    if (!possibleMaster) return
+    setConfirmedMaster(possibleMaster)
+    setMatchedMaster(possibleMaster)
+    setMatchKind('product_name')
+    setMatchConfidence('high')
+    setPrimarySource('master_database')
+    setForm((prev) => applyNameMatchedMasterToForm(prev, possibleMaster))
+  }
+
+  const handleDeclineNameMatch = () => {
+    setDeclinedNameMatch(true)
+    setConfirmedMaster(null)
+    setMatchedMaster(null)
+    setMatchKind(null)
+    setMatchConfidence(null)
+  }
+
   const handleSave = async () => {
     if (checkDuplicate(form.barcode, form.country, form.country_variant)) return
 
@@ -176,11 +221,16 @@ export function AddCanPage() {
 
     try {
       let insert = formDataToInsert(form)
-      try {
-        const masters = await fetchActiveMasterCans('all')
-        insert = attachMasterCanLink(insert, masters)
-      } catch (linkErr) {
-        logSaveCanError(linkErr, { operation: 'master_can_link', barcode: form.barcode })
+      const linkedMaster = confirmedMaster ?? matchedMaster
+      if (linkedMaster) {
+        insert = { ...insert, master_can_id: linkedMaster.id }
+      } else {
+        try {
+          const masters = await fetchActiveMasterCans('all')
+          insert = attachMasterCanLink(insert, masters)
+        } catch (linkErr) {
+          logSaveCanError(linkErr, { operation: 'master_can_link', barcode: form.barcode })
+        }
       }
       const created = await add(insert)
 
@@ -223,23 +273,38 @@ export function AddCanPage() {
         await update(created.id, getSaveImageFields(form))
       }
 
-      if (!insert.master_can_id && insert.barcode) {
-        const imageUrl =
-          form.image_source === 'user_uploaded'
-            ? form.user_image_url
-            : form.master_image_url || null
-        await maybeCreatePendingSuggestion({
-          barcode: insert.barcode,
-          product_name: insert.name,
-          brand: insert.brand,
-          flavor: insert.flavor,
-          image_url: imageUrl,
-          source: inferSuggestionSource({
-            offFound: offStatus === 'found',
-            hasUserImage: form.image_source === 'user_uploaded' && Boolean(form.user_image_url),
-          }),
-          submitted_by: storageUserId,
-        }).catch(() => undefined)
+      if (insert.barcode) {
+        if (insert.master_can_id) {
+          const masters = await fetchActiveMasterCans('all').catch(() => [])
+          const linked = masters.find((row) => row.id === insert.master_can_id)
+          if (linked && !normalizeMasterBarcode(linked.barcode)) {
+            await maybeCreateBarcodeLinkSuggestion({
+              barcode: insert.barcode,
+              product_name: insert.name ?? form.name,
+              suggested_master_can_id: linked.id,
+              submitted_by: storageUserId,
+              brand: insert.brand,
+              flavor: insert.flavor,
+            }).catch(() => undefined)
+          }
+        } else {
+          const imageUrl =
+            form.image_source === 'user_uploaded'
+              ? form.user_image_url
+              : form.master_image_url || null
+          await maybeCreatePendingSuggestion({
+            barcode: insert.barcode,
+            product_name: insert.name,
+            brand: insert.brand,
+            flavor: insert.flavor,
+            image_url: imageUrl,
+            source: inferSuggestionSource({
+              offFound: offStatus === 'found',
+              hasUserImage: form.image_source === 'user_uploaded' && Boolean(form.user_image_url),
+            }),
+            submitted_by: storageUserId,
+          }).catch(() => undefined)
+        }
       }
 
       const savedName = created.name || form.name || 'Can'
@@ -312,8 +377,13 @@ export function AddCanPage() {
             offStatus={offStatus}
             primarySource={primarySource}
             matchedMaster={matchedMaster}
+            matchKind={matchKind}
+            matchConfidence={matchConfidence}
             possibleMaster={possibleMaster}
             possibleMasterScore={possibleMasterScore}
+            declinedNameMatch={declinedNameMatch}
+            onAcceptNameMatch={handleAcceptNameMatch}
+            onDeclineNameMatch={handleDeclineNameMatch}
             onBack={resetToScan}
             onContinue={() => setStep('edit')}
             onEdit={() => setStep('edit')}
