@@ -6,12 +6,14 @@ import {
   Crown,
   Globe,
   HardDrive,
+  LayoutDashboard,
   LogOut,
   MessageSquare,
   Settings,
   Share2,
   UserPlus,
 } from 'lucide-react'
+import { isProfileAdmin } from '../lib/adminAuth'
 import { Layout } from '../components/layout/Layout'
 import { SocialShareButtons } from '../components/profile/SocialShareButtons'
 import { Card } from '../components/ui/Card'
@@ -234,6 +236,19 @@ export function ProfilePage() {
               </Button>
             </form>
           </Card>
+        ) : null}
+
+        {isCloudSynced && isProfileAdmin(profile) ? (
+          <Link
+            to="/admin"
+            className="flex items-center gap-3 rounded-xl border border-monster-green/30 bg-monster-green/5 p-4 transition-colors hover:border-monster-green/50"
+          >
+            <LayoutDashboard size={22} className="text-monster-green" />
+            <div>
+              <p className="text-sm font-semibold text-white">Admin Dashboard</p>
+              <p className="text-xs text-monster-muted">Private stats and admin tools</p>
+            </div>
+          </Link>
         ) : null}
 
         <Link

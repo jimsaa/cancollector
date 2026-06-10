@@ -35,6 +35,7 @@ import { AdminImageReviewPage } from './pages/AdminImageReviewPage'
 import { FeedbackPage } from './pages/FeedbackPage'
 import { AdminFeedbackPage } from './pages/AdminFeedbackPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
+import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import {
   checkLocalImportState,
   logLocalImportCheck,
@@ -114,6 +115,7 @@ function AppRoutes() {
         <Route path="/backup" element={<ProtectedRoute><BackupPage /></ProtectedRoute>} />
         <Route path="/premium" element={<ProtectedRoute><PremiumPage /></ProtectedRoute>} />
         <Route path="/feedback" element={<ProtectedRoute><FeedbackPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/admin/master-cans" element={<AdminMasterCansPage />} />
         <Route path="/admin/master-catalog" element={<AdminMasterCatalogPage />} />
         <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
