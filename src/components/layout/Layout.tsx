@@ -8,6 +8,7 @@ import { Logo } from '../brand/Logo'
 
 import { BottomNav } from './BottomNav'
 
+import { BetaStatusBadge } from '../BetaStatusBadge'
 import { PwaInstallButton } from '../pwa/PwaInstallButton'
 import { GuestModeBanner } from './GuestModeBanner'
 
@@ -62,8 +63,10 @@ export function Layout({ children, title, hideNav }: LayoutProps) {
             <Logo size="sm" />
 
             <div className="min-w-0">
-
-              <p className="truncate text-xs font-bold text-monster-green">{APP_NAME}</p>
+              <div className="flex items-center gap-2">
+                <p className="truncate text-xs font-bold text-monster-green">{APP_NAME}</p>
+                <BetaStatusBadge />
+              </div>
 
               <p className="truncate text-[10px] text-monster-muted">{APP_TAGLINE}</p>
 
@@ -73,7 +76,7 @@ export function Layout({ children, title, hideNav }: LayoutProps) {
 
           </Link>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-1.5 sm:max-w-none sm:gap-2">
             <PwaInstallButton />
 
             {isCloudSynced && displayLabel ? (

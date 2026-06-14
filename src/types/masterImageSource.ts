@@ -2,6 +2,7 @@
 export type MasterImageSource =
   | 'official_site'
   | 'manual'
+  | 'admin_uploaded'
   | 'seed'
   | 'open_food_facts'
   | 'placeholder'
@@ -9,6 +10,7 @@ export type MasterImageSource =
 export const MASTER_IMAGE_SOURCE_LABELS: Record<MasterImageSource, string> = {
   official_site: 'Official site reference',
   manual: 'Manual admin entry',
+  admin_uploaded: 'Admin uploaded reference',
   seed: 'Seed data',
   open_food_facts: 'Open Food Facts',
   placeholder: 'Placeholder',

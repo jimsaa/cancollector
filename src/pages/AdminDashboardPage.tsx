@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   BarChart3,
   Database,
+  Flag,
   ImageIcon,
   Inbox,
   LayoutDashboard,
@@ -47,12 +48,13 @@ function premiumLabel(isPremium: boolean, source: string | null): string {
 
 const QUICK_LINKS = [
   { to: '/admin/feedback', label: 'Feedback Inbox', icon: Inbox },
+  { to: '/admin/match-reports', label: 'Match Reports', icon: Flag },
   { to: '/admin/master-catalog', label: 'Master Can Admin', icon: Database },
   { to: '/admin/master-cans', label: 'Scan Queue', icon: ScanLine },
   { to: '/admin/image-review', label: 'Image Review', icon: ImageIcon },
   { to: '/admin/imports', label: 'Official Product Import', icon: Package },
   { to: '/admin/users', label: 'User Management', icon: Users },
-  { to: '/admin/image-review', label: 'Master Image Uploader', icon: Upload },
+  { to: '/admin/image-uploader', label: 'Master Image Uploader', icon: Upload },
 ] as const
 
 export function AdminDashboardPage() {

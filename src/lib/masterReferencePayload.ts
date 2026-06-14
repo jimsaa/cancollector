@@ -111,7 +111,10 @@ export function buildMasterReferencePayload(input: {
 
     ? 'approved'
 
-    : image_source === 'official_site' || image_source === 'manual' || image_source === 'seed'
+    : image_source === 'official_site' ||
+        image_source === 'manual' ||
+        image_source === 'admin_uploaded' ||
+        image_source === 'seed'
 
       ? 'approved'
 

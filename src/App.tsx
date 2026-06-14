@@ -36,6 +36,8 @@ import { FeedbackPage } from './pages/FeedbackPage'
 import { AdminFeedbackPage } from './pages/AdminFeedbackPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { AdminMasterImageUploaderPage } from './pages/AdminMasterImageUploaderPage'
+import { AdminMatchReportsPage } from './pages/AdminMatchReportsPage'
 import {
   checkLocalImportState,
   logLocalImportCheck,
@@ -119,8 +121,10 @@ function AppRoutes() {
         <Route path="/admin/master-cans" element={<AdminMasterCansPage />} />
         <Route path="/admin/master-catalog" element={<AdminMasterCatalogPage />} />
         <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
+        <Route path="/admin/match-reports" element={<AdminMatchReportsPage />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/image-review" element={<AdminImageReviewPage />} />
+        <Route path="/admin/image-uploader" element={<AdminMasterImageUploaderPage />} />
         <Route path="/admin/imports" element={<AdminImportsPage />} />
         <Route path="/admin/imports/monster-products" element={<AdminMonsterProductsImportPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

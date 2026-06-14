@@ -37,14 +37,16 @@ export function CollectionProgressCard({ stats }: CollectionProgressCardProps) {
 
       <div className="mt-3 rounded-xl border border-monster-border bg-monster-dark/60 px-3 py-2">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-monster-muted">
-          Master Database Coverage
+          Verified Master Database
         </p>
         <p className="mt-0.5 text-sm text-white">
-          Master Database Coverage:{' '}
           <span className="font-semibold text-monster-green">
             {stats.completionTotal.toLocaleString()}
           </span>{' '}
-          verified {stats.completionTotal === 1 ? 'can' : 'cans'}
+          verified {stats.completionTotal === 1 ? 'can' : 'cans'}.
+        </p>
+        <p className="mt-1 text-xs text-monster-muted">
+          Community expansion in progress. New cans are continuously added during beta.
           {' · '}
           {stats.completionOwned} in this collection
         </p>

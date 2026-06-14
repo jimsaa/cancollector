@@ -26,6 +26,14 @@ export const EXTENDED_MASTER_CAN_COLUMNS = [
 
   'barcode_source',
 
+  'sku',
+
+  'external_product_id',
+
+  'corrected_by',
+
+  'corrected_at',
+
   'collection_set',
 
   'base_product_key',

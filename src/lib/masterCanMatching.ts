@@ -4,7 +4,6 @@ import type { UserCanStatusMap } from '../types/userCanStatus'
 import type { MasterCan, MasterCanWithStatus } from '../types/masterCan'
 
 import { getDefaultCollectionSource, resolveCanImage } from './canImage'
-import { findBestBarcodelessMasterMatch } from './masterCanProductMatch'
 import { normalizeImageSource } from '../types/imageSource'
 
 import { getApprovedMasterReferenceImageUrl } from './masterReferenceImage'
@@ -95,6 +94,22 @@ export function findMasterByBarcode(masters: MasterCan[], barcode: string): Mast
 
 }
 
+export function normalizeSku(value: string | null | undefined): string {
+  return (value ?? '').trim().toUpperCase()
+}
+
+export function findMasterBySku(masters: MasterCan[], sku: string): MasterCan | null {
+  const code = normalizeSku(sku)
+  if (!code) return null
+  return masters.find((m) => m.sku && normalizeSku(m.sku) === code) ?? null
+}
+
+export function findMasterByProductId(masters: MasterCan[], productId: string): MasterCan | null {
+  const id = productId.trim()
+  if (!id) return null
+  return masters.find((m) => m.external_product_id?.trim() === id) ?? null
+}
+
 
 
 function resolveInsertImage(
@@ -183,15 +198,6 @@ export function attachMasterCanLink(
   if (insert.master_can_id || !insert.barcode) return insert
 
   let master = findMasterByBarcode(masters, insert.barcode)
-
-  if (!master && insert.name) {
-    const fuzzy = findBestBarcodelessMasterMatch(masters, {
-      product_name: insert.name,
-      brand: insert.brand,
-      flavor: insert.flavor,
-    })
-    master = fuzzy?.master ?? null
-  }
 
   if (!master) return insert
 

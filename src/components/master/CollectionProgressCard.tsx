@@ -28,7 +28,7 @@ export function CollectionProgressCard({ progress, showLink = true }: Collection
           <p className="text-2xl font-bold text-white">{progress.owned}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-wide text-monster-muted">Master Database</p>
+          <p className="text-[10px] uppercase tracking-wide text-monster-muted">Verified Master</p>
           <p className="text-2xl font-bold text-white">{progress.total}</p>
         </div>
       </div>
@@ -47,8 +47,10 @@ export function CollectionProgressCard({ progress, showLink = true }: Collection
       </div>
 
       <p className="mt-2 text-xs text-monster-muted">
-        Master Database Coverage: {progress.total.toLocaleString()} verified{' '}
-        {progress.total === 1 ? 'can' : 'cans'}
+        <span className="font-semibold text-white">Verified Master Database</span>
+        {' · '}
+        {progress.total.toLocaleString()} verified {progress.total === 1 ? 'can' : 'cans'}.
+        Community expansion in progress — new cans are continuously added during beta.
         {progress.missing > 0 ? ` · ${progress.missing} missing from your collection` : ''}
       </p>
     </Card>

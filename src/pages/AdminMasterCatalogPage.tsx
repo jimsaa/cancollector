@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Barcode, Lock, Pencil, Shield } from 'lucide-react'
 import { AdminAttachBarcodeModal } from '../components/admin/AdminAttachBarcodeModal'
+import { AdminCorrectBarcodeModal } from '../components/admin/AdminCorrectBarcodeModal'
 import { AdminMasterCollectorEditModal } from '../components/admin/AdminMasterCollectorEditModal'
 import { AdminHubNav } from '../components/admin/AdminHubNav'
 import { Layout } from '../components/layout/Layout'
@@ -17,13 +18,14 @@ import {
   getAdminAccessState,
 } from '../lib/adminAuth'
 import { attachBarcodeToMasterCan } from '../lib/pendingSuggestions'
+import { correctMasterIdentifiers } from '../lib/masterCanCorrection'
 import { fetchActiveMasterCans } from '../lib/masterCans'
 import { formatMasterCanError } from '../lib/masterCanSupabase'
 import { isBarcodelessMaster } from '../lib/masterCanProductMatch'
 import type { MasterBarcodeSource, MasterCan } from '../types/masterCan'
 
 export function AdminMasterCatalogPage() {
-  const { profile, loading: authLoading, isGuest, isConfigured } = useAuth()
+  const { user, profile, loading: authLoading, isGuest, isConfigured } = useAuth()
   const [localAdmin, setLocalAdmin] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState<string | null>(null)
@@ -36,6 +38,9 @@ export function AdminMasterCatalogPage() {
   const [attachSaving, setAttachSaving] = useState(false)
   const [attachError, setAttachError] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<MasterCan | null>(null)
+  const [correctTarget, setCorrectTarget] = useState<MasterCan | null>(null)
+  const [correctSaving, setCorrectSaving] = useState(false)
+  const [correctError, setCorrectError] = useState<string | null>(null)
 
   const access = getAdminAccessState({
     loading: authLoading,
@@ -98,6 +103,32 @@ export function AdminMasterCatalogPage() {
       setAttachError(formatMasterCanError(err, 'Attach failed'))
     } finally {
       setAttachSaving(false)
+    }
+  }
+
+  const handleCorrectIdentifiers = async (input: {
+    barcode: string
+    sku: string
+    external_product_id: string
+  }) => {
+    if (!correctTarget) return
+    setCorrectSaving(true)
+    setCorrectError(null)
+    setSuccess(null)
+    try {
+      await correctMasterIdentifiers(correctTarget, {
+        barcode: input.barcode || null,
+        sku: input.sku || null,
+        external_product_id: input.external_product_id || null,
+        adminUserId: user?.id ?? 'local-admin',
+      })
+      setSuccess(`Identifiers corrected for ${correctTarget.product_name}`)
+      setCorrectTarget(null)
+      await load()
+    } catch (err) {
+      setCorrectError(formatMasterCanError(err, 'Correction failed'))
+    } finally {
+      setCorrectSaving(false)
     }
   }
 
@@ -243,7 +274,19 @@ export function AdminMasterCatalogPage() {
                         <Barcode size={14} />
                         Attach barcode
                       </Button>
-                    ) : null}
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        className="w-full py-2 text-xs"
+                        onClick={() => {
+                          setCorrectError(null)
+                          setCorrectTarget(row)
+                        }}
+                      >
+                        <Barcode size={14} />
+                        Correct Barcode / SKU
+                      </Button>
+                    )}
                   </div>
                 </Card>
               ))}
@@ -265,6 +308,15 @@ export function AdminMasterCatalogPage() {
           master={editTarget}
           onClose={() => setEditTarget(null)}
           onSaved={() => void load()}
+        />
+
+        <AdminCorrectBarcodeModal
+          key={correctTarget?.id ?? 'closed'}
+          master={correctTarget}
+          saving={correctSaving}
+          error={correctError}
+          onClose={() => setCorrectTarget(null)}
+          onSave={(input) => void handleCorrectIdentifiers(input)}
         />
       </div>
     </Layout>

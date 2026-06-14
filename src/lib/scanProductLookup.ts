@@ -3,11 +3,15 @@ import { applyScanImageToForm } from '../components/cans/CanForm'
 import type { ProductLookup } from '../types/can'
 import type { MasterCan } from '../types/masterCan'
 import { fetchMasterCans } from './masterCans'
-import { findMasterByBarcode } from './masterCanMatching'
 import {
+  findMasterByBarcode,
+  findMasterByProductId,
+  findMasterBySku,
+} from './masterCanMatching'
+import {
+  findBarcodelessMasterMatches,
   findBestBarcodelessMasterMatchFromOff,
-  getMatchConfidence,
-  type MatchConfidence,
+  type MasterCanProductMatch,
 } from './masterCanProductMatch'
 import {
   getApprovedMasterReferenceImageUrl,
@@ -17,19 +21,16 @@ import {
 import { fetchProductByBarcode } from './openFoodFacts'
 
 export type OffLookupStatus = 'found' | 'not_found' | 'error' | 'skipped'
-export type MasterMatchKind = 'barcode' | 'product_name' | null
+export type MasterMatchKind = 'barcode' | 'sku' | 'product_id' | 'product_name' | null
 
 export interface BarcodeLookupResult {
   master: MasterCan | null
   matchKind: MasterMatchKind
-  matchConfidence: MatchConfidence | null
-  /** Medium-confidence barcode-less catalog match awaiting user confirmation */
-  possibleMaster: MasterCan | null
-  possibleMasterScore: number | null
+  /** User-selected name match only — never auto-assigned */
+  possibleMatches: MasterCanProductMatch[]
   offProduct: ProductLookup | null
   offStatus: OffLookupStatus
   primarySource: 'master_database' | 'open_food_facts' | 'none'
-  /** Active entries in the CanTrove master catalog */
   masterCatalogTotal: number
   form: CanFormData
 }
@@ -123,11 +124,67 @@ async function lookupOpenFoodFacts(barcode: string): Promise<{
   }
 }
 
+function buildExactMasterResult(
+  trimmed: string,
+  master: MasterCan,
+  matchKind: Exclude<MasterMatchKind, 'product_name' | null>,
+  masterCatalogTotal: number,
+  emptyForm: () => CanFormData,
+): BarcodeLookupResult {
+  const base = emptyForm()
+  const fields = buildScanFormFields(trimmed, master, null, matchKind)
+  const form = applyScanImageToForm(
+    { ...base, ...fields },
+    { masterReferenceApproved: Boolean(fields.master_image_url) },
+  )
+
+  return {
+    master,
+    matchKind,
+    possibleMatches: [],
+    offProduct: null,
+    offStatus: 'skipped',
+    primarySource: 'master_database',
+    masterCatalogTotal,
+    form,
+  }
+}
+
+function collectPossibleMatches(
+  masters: MasterCan[],
+  offProduct: ProductLookup | null,
+  scannedBarcode: string,
+): MasterCanProductMatch[] {
+  if (offProduct?.name?.trim()) {
+    const best = findBestBarcodelessMasterMatchFromOff(masters, offProduct, scannedBarcode)
+    const fromOff = findBarcodelessMasterMatches(
+      masters,
+      {
+        product_name: offProduct.name,
+        brand: offProduct.brand,
+        flavor: offProduct.flavor,
+      },
+      { limit: 5, scannedBarcode },
+    )
+    if (best && !fromOff.some((m) => m.master.id === best.master.id)) {
+      return [best, ...fromOff].slice(0, 5)
+    }
+    return fromOff
+  }
+
+  return []
+}
+
 /**
+ * Exact master identification only (barcode, SKU, product ID).
+ * Name-based matches are suggestions — never auto-selected.
+ *
  * Lookup order:
  * 1) Exact master_cans barcode
- * 2) Open Food Facts
- * 3) Fuzzy OFF product name against barcode-less master_cans
+ * 2) Exact master_cans SKU
+ * 3) Exact master_cans external_product_id
+ * 4) Open Food Facts (identification only)
+ * 5) Possible name matches shown for manual selection
  */
 export async function lookupBarcodeProduct(
   barcode: string,
@@ -147,102 +204,53 @@ export async function lookupBarcodeProduct(
   const activeMasters = masters.filter((m) => m.active !== false)
   const masterCatalogTotal = activeMasters.length
 
-  const exactMaster = masters.length > 0 ? findMasterByBarcode(masters, trimmed) : null
+  const exactBarcode = masters.length > 0 ? findMasterByBarcode(masters, trimmed) : null
+  if (isCompleteMasterMatch(exactBarcode)) {
+    return buildExactMasterResult(trimmed, exactBarcode, 'barcode', masterCatalogTotal, emptyForm)
+  }
 
-  if (isCompleteMasterMatch(exactMaster)) {
-    const base = emptyForm()
-    const fields = buildScanFormFields(trimmed, exactMaster, null, 'barcode')
-    const form = applyScanImageToForm(
-      { ...base, ...fields },
-      { masterReferenceApproved: Boolean(fields.master_image_url) },
-    )
+  const exactSku = masters.length > 0 ? findMasterBySku(masters, trimmed) : null
+  if (isCompleteMasterMatch(exactSku)) {
+    return buildExactMasterResult(trimmed, exactSku, 'sku', masterCatalogTotal, emptyForm)
+  }
 
-    return {
-      master: exactMaster,
-      matchKind: 'barcode',
-      matchConfidence: 'high',
-      possibleMaster: null,
-      possibleMasterScore: null,
-      offProduct: null,
-      offStatus: 'skipped',
-      primarySource: 'master_database',
-      masterCatalogTotal,
-      form,
-    }
+  const exactProductId = masters.length > 0 ? findMasterByProductId(masters, trimmed) : null
+  if (isCompleteMasterMatch(exactProductId)) {
+    return buildExactMasterResult(trimmed, exactProductId, 'product_id', masterCatalogTotal, emptyForm)
   }
 
   const off = await lookupOpenFoodFacts(trimmed)
   const offProduct = off.product
+  const possibleMatches = collectPossibleMatches(masters, offProduct, trimmed)
 
-  const nameMatch =
-    offProduct?.name?.trim() && masters.length > 0
-      ? findBestBarcodelessMasterMatchFromOff(masters, offProduct, trimmed)
-      : null
-
-  let master: MasterCan | null = null
-  let matchKind: MasterMatchKind = null
-  let matchConfidence: MatchConfidence | null = null
-  let possibleMaster: MasterCan | null = null
-  let possibleMasterScore: number | null = null
-
-  if (nameMatch) {
-    matchConfidence = getMatchConfidence(nameMatch.score)
-    if (matchConfidence === 'high') {
-      master = nameMatch.master
-      matchKind = 'product_name'
-    } else if (matchConfidence === 'medium') {
-      possibleMaster = nameMatch.master
-      possibleMasterScore = nameMatch.score
-    }
-  }
-
-  const primarySource: BarcodeLookupResult['primarySource'] = master
-    ? 'master_database'
-    : offProduct
-      ? 'open_food_facts'
-      : 'none'
+  const primarySource: BarcodeLookupResult['primarySource'] = offProduct
+    ? 'open_food_facts'
+    : 'none'
 
   const base = emptyForm()
-  const fields = buildScanFormFields(trimmed, master, offProduct, matchKind)
+  const fields = buildScanFormFields(trimmed, null, offProduct, null)
   const form = applyScanImageToForm(
     { ...base, ...fields },
-    { masterReferenceApproved: Boolean(matchKind && fields.master_image_url) },
+    { masterReferenceApproved: false },
   )
 
-  const barcodelessCount = masters.filter((m) => !m.barcode?.trim()).length
-  const ultraBlackInCatalog = masters.some((m) =>
-    m.product_name?.toLowerCase().includes('ultra black'),
-  )
   if (import.meta.env.DEV) {
     console.info('[scan] Barcode lookup', {
       barcode: trimmed,
       catalogCount: masters.length,
-      barcodelessCount,
-      ultraBlackInCatalog,
-      exactBarcode: Boolean(exactMaster),
-      nameMatch: nameMatch?.master.product_name ?? null,
-      nameMatchScore: nameMatch?.score ?? null,
-      matchKind,
-      matchConfidence,
+      exactBarcode: Boolean(exactBarcode),
+      exactSku: Boolean(exactSku),
+      exactProductId: Boolean(exactProductId),
+      possibleMatchCount: possibleMatches.length,
       offStatus: off.status,
       offName: offProduct?.name ?? null,
-      hasMasterImage: Boolean(form.master_image_url),
     })
-  }
-  if (offProduct?.name && !nameMatch && ultraBlackInCatalog) {
-    console.warn('[scan] Ultra Black is in catalog but name match failed — check barcode/active fields')
-  } else if (offProduct?.name && !nameMatch && barcodelessCount === 0) {
-    console.warn(
-      '[scan] Open Food Facts found a product but no barcode-less master cans exist to match against.',
-    )
   }
 
   return {
-    master,
-    matchKind,
-    matchConfidence,
-    possibleMaster,
-    possibleMasterScore,
+    master: null,
+    matchKind: null,
+    possibleMatches,
     offProduct,
     offStatus: off.status,
     primarySource,

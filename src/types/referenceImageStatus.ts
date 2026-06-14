@@ -72,10 +72,13 @@ export function resolveReferenceImageStatus(
 
   if (imageSource === 'open_food_facts') return 'pending'
 
-  if (imageSource === 'official_site' || imageSource === 'manual' || imageSource === 'seed') {
-
+  if (
+    imageSource === 'official_site' ||
+    imageSource === 'manual' ||
+    imageSource === 'admin_uploaded' ||
+    imageSource === 'seed'
+  ) {
     return 'approved'
-
   }
 
   return 'pending'

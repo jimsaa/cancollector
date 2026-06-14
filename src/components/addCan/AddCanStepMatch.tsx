@@ -4,7 +4,9 @@ import {
   ArrowRight,
   Database,
   Edit3,
+  Flag,
   Package,
+  PlusCircle,
   Search,
 } from 'lucide-react'
 import type { CanFormData } from '../cans/CanForm'
@@ -15,8 +17,9 @@ import {
   IMAGE_SOURCE_LABELS,
 } from '../../lib/canImage'
 import type { MasterMatchKind, OffLookupStatus } from '../../lib/scanProductLookup'
-import type { MatchConfidence } from '../../lib/masterCanProductMatch'
+import type { MasterCanProductMatch } from '../../lib/masterCanProductMatch'
 import type { MasterCan } from '../../types/masterCan'
+import { PossibleMatchCard } from './PossibleMatchCard'
 import { VerificationBadge } from './VerificationBadge'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
@@ -25,7 +28,7 @@ import { InfoTooltip } from '../ui/InfoTooltip'
 export type { OffLookupStatus }
 
 const DATABASE_TOOLTIP =
-  'CanTrove is building a verified collector database. External lookups help identify products not yet verified.'
+  'CanTrove is building a verified collector database. External lookups help identify products not yet verified. We never auto-assign a can without an exact barcode, SKU, or product ID match.'
 
 interface AddCanStepMatchProps {
   data: CanFormData
@@ -34,12 +37,12 @@ interface AddCanStepMatchProps {
   masterCatalogTotal: number
   matchedMaster: MasterCan | null
   matchKind: MasterMatchKind
-  matchConfidence: MatchConfidence | null
-  possibleMaster: MasterCan | null
-  possibleMasterScore: number | null
-  declinedNameMatch: boolean
-  onAcceptNameMatch: () => void
-  onDeclineNameMatch: () => void
+  possibleMatches: MasterCanProductMatch[]
+  onSelectPossibleMatch: (match: MasterCanProductMatch) => void
+  onSuggestNewCan: () => void
+  onReportIncorrectMatch: (masterCanId?: string | null) => void
+  reportSubmitting: boolean
+  reportSuccess: string | null
   onBack: () => void
   onContinue: () => void
   onEdit: () => void
@@ -68,6 +71,14 @@ const lookupStatusCopy: Record<
   skipped: { detail: '', tone: 'neutral' },
 }
 
+function matchKindLabel(kind: MasterMatchKind): string {
+  if (kind === 'barcode') return 'Exact barcode match'
+  if (kind === 'sku') return 'Exact SKU match'
+  if (kind === 'product_id') return 'Exact product ID match'
+  if (kind === 'product_name') return 'Collector-selected match'
+  return ''
+}
+
 export function AddCanStepMatch({
   data,
   offStatus,
@@ -75,12 +86,12 @@ export function AddCanStepMatch({
   masterCatalogTotal,
   matchedMaster,
   matchKind,
-  matchConfidence,
-  possibleMaster,
-  possibleMasterScore,
-  declinedNameMatch,
-  onAcceptNameMatch,
-  onDeclineNameMatch,
+  possibleMatches,
+  onSelectPossibleMatch,
+  onSuggestNewCan,
+  onReportIncorrectMatch,
+  reportSubmitting,
+  reportSuccess,
   onBack,
   onContinue,
   onEdit,
@@ -89,6 +100,7 @@ export function AddCanStepMatch({
   const isLookupOnly = !isMasterVerified && primarySource === 'open_food_facts'
   const lookup = lookupStatusCopy[offStatus]
   const showLookupSection = offStatus !== 'skipped'
+  const showPossibleMatches = !isMasterVerified && possibleMatches.length > 0
 
   const offPreview = getOffLookupPreviewUrl(data.off_image_url)
   const masterPreview = getApprovedMasterReferenceUrl({ master_image_url: data.master_image_url })
@@ -100,28 +112,32 @@ export function AddCanStepMatch({
   )
 
   const masterMatchDetail = matchedMaster
-    ? matchKind === 'product_name'
-      ? `Matched by product name: ${matchedMaster.product_name}`
-      : `Matched: ${matchedMaster.product_name}`
-    : 'No verified master can for this barcode yet'
+    ? `${matchKindLabel(matchKind)}: ${matchedMaster.product_name}`
+    : showPossibleMatches
+      ? 'No exact match found — review possible matches below'
+      : 'No exact match found for this barcode'
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-2">
         <p className="flex-1 text-sm text-monster-muted">
-          CanTrove uses its own verified <strong className="text-white">Master Database</strong> as
-          the primary source. Barcode lookup services only help identify products not yet in the
-          catalog.
+          CanTrove uses its <strong className="text-white">Verified Master Database</strong> as the
+          primary source. We only auto-verify on exact barcode, SKU, or product ID matches — never on
+          partial product names.
         </p>
         <InfoTooltip text={DATABASE_TOOLTIP} className="mt-0.5 shrink-0" />
       </div>
 
-      <p className="rounded-xl border border-monster-border bg-monster-card px-3 py-2 text-xs text-monster-muted">
-        <span className="font-semibold text-white">Master Database Coverage:</span>{' '}
-        {masterCatalogTotal.toLocaleString()} verified {masterCatalogTotal === 1 ? 'can' : 'cans'}
-      </p>
+      <Card className="border-monster-green/20 bg-monster-green/5 p-4">
+        <p className="text-sm font-semibold text-white">Verified Master Database</p>
+        <p className="mt-1 text-lg font-bold text-monster-green">
+          {masterCatalogTotal.toLocaleString()} verified {masterCatalogTotal === 1 ? 'can' : 'cans'}
+        </p>
+        <p className="mt-2 text-xs text-monster-muted">
+          Community expansion in progress. New cans are continuously added during beta.
+        </p>
+      </Card>
 
-      {/* Master Database — always shown first */}
       <Card
         className={`p-4 ${
           isMasterVerified
@@ -143,44 +159,63 @@ export function AddCanStepMatch({
             <p className="mt-2 text-xs text-white/80">
               {isMasterVerified
                 ? 'Verified by CanTrove Master Database'
-                : 'CanTrove Master Database does not yet contain a verified version of this product.'}
+                : 'CanTrove did not find an exact verified match for this scan.'}
             </p>
+            {isMasterVerified ? (
+              <Button
+                variant="ghost"
+                className="mt-2 h-auto px-0 py-1 text-xs text-yellow-300 hover:text-yellow-200"
+                loading={reportSubmitting}
+                onClick={() => onReportIncorrectMatch(matchedMaster?.id)}
+              >
+                <Flag size={14} />
+                Report incorrect match
+              </Button>
+            ) : null}
+            {reportSuccess ? <p className="mt-1 text-xs text-monster-green">{reportSuccess}</p> : null}
           </div>
         </div>
       </Card>
 
-      {matchedMaster && matchKind === 'product_name' ? (
-        <span className="inline-flex w-fit items-center rounded-full bg-monster-green/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-monster-green">
-          Matched by product name
-        </span>
-      ) : null}
-
-      {!matchedMaster && possibleMaster && !declinedNameMatch && matchConfidence === 'medium' ? (
-        <Card className="flex flex-col gap-3 border-yellow-600/40 bg-yellow-900/20 p-3">
-          <div className="flex items-start gap-3">
+      {showPossibleMatches ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-2">
             <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-400" />
             <div>
-              <p className="text-sm font-semibold text-yellow-200">Possible Master Database match</p>
-              <p className="text-xs text-yellow-100/80">
-                {possibleMaster.product_name}
-                {possibleMasterScore
-                  ? ` (${Math.round(possibleMasterScore * 100)}% match, no barcode yet)`
-                  : ' (no barcode yet)'}
+              <p className="text-sm font-semibold text-yellow-200">Possible matches</p>
+              <p className="text-xs text-monster-muted">
+                These are suggestions only. Select the correct can or suggest a new one.
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button className="py-2 text-xs" onClick={onAcceptNameMatch}>
-              Use this match
-            </Button>
-            <Button variant="secondary" className="py-2 text-xs" onClick={onDeclineNameMatch}>
-              Keep lookup data
-            </Button>
-          </div>
+          {possibleMatches.map((match) => (
+            <PossibleMatchCard
+              key={match.master.id}
+              match={match}
+              onSelect={() => onSelectPossibleMatch(match)}
+              onReport={() => onReportIncorrectMatch(match.master.id)}
+              reporting={reportSubmitting}
+            />
+          ))}
+          <Button variant="secondary" onClick={onSuggestNewCan}>
+            <PlusCircle size={16} />
+            Suggest a new can
+          </Button>
+        </div>
+      ) : !isMasterVerified ? (
+        <Card className="border-monster-border p-4">
+          <p className="text-sm font-semibold text-white">No exact match found</p>
+          <p className="mt-1 text-xs text-monster-muted">
+            This barcode is not in the verified database yet. Continue with lookup data or suggest a
+            new can for admin review.
+          </p>
+          <Button variant="secondary" className="mt-3" onClick={onSuggestNewCan}>
+            <PlusCircle size={16} />
+            Suggest a new can
+          </Button>
         </Card>
       ) : null}
 
-      {/* Primary product card — master-first presentation */}
       <Card className="overflow-hidden border-monster-border p-0">
         <div className="flex gap-4 p-4">
           <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-monster-dark">
@@ -216,7 +251,7 @@ export function AddCanStepMatch({
               {isMasterVerified
                 ? 'Product data from CanTrove Master Database'
                 : isLookupOnly
-                  ? 'Product identified using external lookup. CanTrove Master Database does not yet contain a verified version.'
+                  ? 'Identified via external lookup — not verified in Master Database.'
                   : 'Enter product details manually on the next step.'}
             </p>
             {masterPreview ? (
@@ -237,7 +272,6 @@ export function AddCanStepMatch({
         </div>
       </Card>
 
-      {/* Barcode Lookup Service — secondary, only when consulted */}
       {showLookupSection ? (
         <Card
           className={`p-4 ${
@@ -249,13 +283,7 @@ export function AddCanStepMatch({
           }`}
         >
           <div className="flex items-start gap-3">
-            {lookup.tone === 'success' ? (
-              <Search size={18} className="mt-0.5 shrink-0 text-monster-muted" />
-            ) : lookup.tone === 'warning' ? (
-              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-yellow-400" />
-            ) : (
-              <Search size={18} className="mt-0.5 shrink-0 text-monster-muted" />
-            )}
+            <Search size={18} className="mt-0.5 shrink-0 text-monster-muted" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold text-white">Barcode Lookup Service</p>
@@ -267,12 +295,6 @@ export function AddCanStepMatch({
                 Product identification only
               </p>
               <p className="mt-1 text-xs text-monster-muted">{lookup.detail}</p>
-              {isLookupOnly && offStatus === 'found' ? (
-                <p className="mt-2 text-xs text-yellow-100/80">
-                  Product identified using external lookup. CanTrove Master Database does not yet
-                  contain a verified version.
-                </p>
-              ) : null}
             </div>
           </div>
 
@@ -284,9 +306,6 @@ export function AddCanStepMatch({
                   alt="Barcode lookup preview"
                   className="h-full w-full object-contain p-1"
                 />
-                <span className="absolute bottom-0.5 left-0.5 rounded bg-black/75 px-1 py-0.5 text-[8px] text-yellow-300">
-                  Lookup
-                </span>
               </div>
               <p className="text-xs text-monster-muted">
                 Reference image from external lookup — may be inaccurate. Upload your own can photo

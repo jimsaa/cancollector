@@ -74,6 +74,14 @@ export interface MasterCan {
 
   barcode_source: MasterBarcodeSource | null
 
+  sku: string | null
+
+  external_product_id: string | null
+
+  corrected_by: string | null
+
+  corrected_at: string | null
+
   country: string | null
 
   image_url: string | null

@@ -32,7 +32,8 @@ import {
 } from '../lib/scanProductLookup'
 import { getSaveImageFields } from '../lib/canImage'
 import { normalizeMasterBarcode } from '../lib/masterCanSupabase'
-import type { MatchConfidence } from '../lib/masterCanProductMatch'
+import type { MasterCanProductMatch } from '../lib/masterCanProductMatch'
+import { submitMatchReport } from '../lib/matchReports'
 import {
   inferSuggestionSource,
   maybeCreateBarcodeLinkSuggestion,
@@ -58,12 +59,11 @@ export function AddCanPage() {
   const [manualBarcode, setManualBarcode] = useState('')
   const [form, setForm] = useState<CanFormData>(emptyFormData())
   const [matchedMaster, setMatchedMaster] = useState<MasterCan | null>(null)
-  const [possibleMaster, setPossibleMaster] = useState<MasterCan | null>(null)
-  const [possibleMasterScore, setPossibleMasterScore] = useState<number | null>(null)
+  const [possibleMatches, setPossibleMatches] = useState<MasterCanProductMatch[]>([])
   const [matchKind, setMatchKind] = useState<MasterMatchKind>(null)
-  const [matchConfidence, setMatchConfidence] = useState<MatchConfidence | null>(null)
   const [confirmedMaster, setConfirmedMaster] = useState<MasterCan | null>(null)
-  const [declinedNameMatch, setDeclinedNameMatch] = useState(false)
+  const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [reportSuccess, setReportSuccess] = useState<string | null>(null)
   const [duplicate, setDuplicate] = useState<Can | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [offStatus, setOffStatus] = useState<OffLookupStatus>('skipped')
@@ -84,12 +84,10 @@ export function AddCanPage() {
     setCameraError(null)
     setForm(emptyFormData())
     setMatchedMaster(null)
-    setPossibleMaster(null)
-    setPossibleMasterScore(null)
+    setPossibleMatches([])
     setMatchKind(null)
-    setMatchConfidence(null)
     setConfirmedMaster(null)
-    setDeclinedNameMatch(false)
+    setReportSuccess(null)
     setDuplicate(null)
     setManualBarcode('')
     setOffStatus('skipped')
@@ -123,12 +121,10 @@ export function AddCanPage() {
         const result = await lookupBarcodeProduct(barcode, emptyFormData)
 
         setMatchedMaster(result.master)
-        setPossibleMaster(result.possibleMaster)
-        setPossibleMasterScore(result.possibleMasterScore)
+        setPossibleMatches(result.possibleMatches)
         setMatchKind(result.matchKind)
-        setMatchConfidence(result.matchConfidence)
-        setConfirmedMaster(result.matchKind === 'product_name' ? result.master : null)
-        setDeclinedNameMatch(false)
+        setConfirmedMaster(result.master)
+        setReportSuccess(null)
         setForm(result.form)
         setOffStatus(result.offStatus)
         setPrimarySource(result.primarySource)
@@ -148,12 +144,10 @@ export function AddCanPage() {
         const nextForm = { ...emptyFormData(), barcode }
         setForm(nextForm)
         setMatchedMaster(null)
-        setPossibleMaster(null)
-        setPossibleMasterScore(null)
+        setPossibleMatches([])
         setMatchKind(null)
-        setMatchConfidence(null)
         setConfirmedMaster(null)
-        setDeclinedNameMatch(false)
+        setReportSuccess(null)
         setOffStatus('error')
         setPrimarySource('none')
         setMasterCatalogTotal(0)
@@ -198,22 +192,41 @@ export function AddCanPage() {
     setForm((prev) => applyScanImageToForm({ ...prev, user_image_url: '' }))
   }
 
-  const handleAcceptNameMatch = () => {
-    if (!possibleMaster) return
-    setConfirmedMaster(possibleMaster)
-    setMatchedMaster(possibleMaster)
+  const handleSelectPossibleMatch = (match: MasterCanProductMatch) => {
+    setConfirmedMaster(match.master)
+    setMatchedMaster(match.master)
     setMatchKind('product_name')
-    setMatchConfidence('high')
     setPrimarySource('master_database')
-    setForm((prev) => applyNameMatchedMasterToForm(prev, possibleMaster))
+    setForm((prev) => applyNameMatchedMasterToForm(prev, match.master))
   }
 
-  const handleDeclineNameMatch = () => {
-    setDeclinedNameMatch(true)
-    setConfirmedMaster(null)
-    setMatchedMaster(null)
-    setMatchKind(null)
-    setMatchConfidence(null)
+  const handleSuggestNewCan = () => {
+    setStep('edit')
+  }
+
+  const handleReportIncorrectMatch = async (masterCanId?: string | null) => {
+    if (!isCloudSynced || !user) {
+      setReportSuccess('Sign in to report incorrect matches.')
+      return
+    }
+    setReportSubmitting(true)
+    setReportSuccess(null)
+    try {
+      await submitMatchReport(user.id, {
+        barcode: form.barcode,
+        matched_master_can_id: matchedMaster?.id ?? null,
+        suggested_master_can_id: masterCanId ?? null,
+        off_product_name: form.name,
+        comment: masterCanId
+          ? 'Collector reported a possible match as incorrect'
+          : 'Collector reported verified match as incorrect',
+      })
+      setReportSuccess('Thanks — your report was sent to the admin team.')
+    } catch (err) {
+      setReportSuccess(err instanceof Error ? err.message : 'Could not submit report')
+    } finally {
+      setReportSubmitting(false)
+    }
   }
 
   const handleSave = async () => {
@@ -383,12 +396,12 @@ export function AddCanPage() {
             masterCatalogTotal={masterCatalogTotal}
             matchedMaster={matchedMaster}
             matchKind={matchKind}
-            matchConfidence={matchConfidence}
-            possibleMaster={possibleMaster}
-            possibleMasterScore={possibleMasterScore}
-            declinedNameMatch={declinedNameMatch}
-            onAcceptNameMatch={handleAcceptNameMatch}
-            onDeclineNameMatch={handleDeclineNameMatch}
+            possibleMatches={possibleMatches}
+            onSelectPossibleMatch={handleSelectPossibleMatch}
+            onSuggestNewCan={handleSuggestNewCan}
+            onReportIncorrectMatch={(id) => void handleReportIncorrectMatch(id)}
+            reportSubmitting={reportSubmitting}
+            reportSuccess={reportSuccess}
             onBack={resetToScan}
             onContinue={() => setStep('edit')}
             onEdit={() => setStep('edit')}
